@@ -1,2 +1,2 @@
 # backtest-light
-Library for equity portfolio optimization and backtesting
+Library for equity portfolio optimization and backtesting!
