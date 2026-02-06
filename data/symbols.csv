@@ -1,0 +1,158 @@
+﻿ID,figi,figi_composite,figi_company,sector,sector_4,country,market_status,name,id_exch_symbol
+ABBN SE Equity,BBG00HCY4J44,BBG000DM2M32,BBG001H7XCX4,Industrials,Electrical Components,CH,Active,ABB Ltd,ABBN
+ADEN SE Equity,BBG00HCY5KD0,BBG000BSK6S9,BBG001FFH9R0,Industrials,Professional Services,CH,Active,Adecco Group AG,ADEN
+ALLN SE Equity,BBG000CDZK31,BBG000CDYGR5,BBG001H5S8P2,Real Estate,Multi Asset Class Own & Develop,CH,Active,Allreal Holding AG,ALLN
+APGN SE Equity,BBG000BBCN71,BBG000BBCLN7,BBG001FFJZW4,Communications,Out-of-Home Display Advertising,CH,Active,APG SGA SA,APGN
+BANB SE Equity,BBG000BS0KC7,BBG000BS0JW8,BBG001FN29F2,Health Care,Specialty & Generic Pharma,CH,Active,Bachem Holding AG,BANB
+BARN SE Equity,BBG000C35MD1,BBG000C35LZ9,BBG001FLCJC6,Consumer Staples,Agricultural Producers,CH,Active,Barry Callebaut AG,BARN
+BCVN SE Equity,BBG000BD7RK9,BBG000BD7QX7,BBG001FFJY84,Financials,Banks,CH,Active,Banque Cantonale Vaudoise,BCVN
+BEKN SE Equity,BBG000KD8VL8,BBG000KD8SP1,BBG001FH9SJ2,Financials,Banks,CH,Active,Berner Kantonalbank AG,BEKN
+BLKB SE Equity,BBG000BDC834,BBG000BDC7P2,BBG001FFJYF6,Financials,Banks,CH,Active,Basellandschaftliche Kantonalb,BLKB
+BUCN SE Equity,BBG000BLZY52,BBG000BLZXN4,BBG001FFHN08,Industrials,Agricultural Machinery,CH,Active,Bucher Industries AG,BUCN
+CLN SE Equity,BBG00HCYFBD9,BBG000NQWJL6,BBG001FGHKW7,Materials,Specialty Chemicals,CH,Active,Clariant AG,CLN
+DOKA SE Equity,BBG000FTHLJ4,BBG000FTHJW4,BBG001FH7S77,Industrials,Comml & Res Bldg Equip & Sys,CH,Active,dormakaba Holding AG,DOKA
+EMSN SE Equity,BBG000SVX8W1,BBG000SVX806,BBG001FFGZD8,Materials,Basic & Diversified Chemicals,CH,Active,EMS-Chemie Holding AG,EMSN
+FORN SE Equity,BBG000BBZYJ9,BBG000BBZXW6,BBG001FFHV82,Consumer Discretionary,Building Products,CH,Active,Forbo Holding AG,FORN
+GAM SE Equity,BBG000BVPTN2,BBG000BVPSS9,BBG001GCKGX9,Financials,Investment Management,CH,Active,GAM Holding AG,GAM
+GEBN SE Equity,BBG00HCYH6J2,BBG000FHLJD6,BBG001H9VP72,Consumer Discretionary,Building Products,CH,Active,Geberit AG,GEBN
+GF SE Equity,BBG000BC1MY3,BBG000BC1M46,BBG001FFG027,Industrials,Flow Control Equipment,CH,Active,Georg Fischer AG,GF
+GIVN SE Equity,BBG00HCYH960,BBG000DB0Q75,BBG001GFWY97,Materials,Specialty Chemicals,CH,Active,Givaudan SA,GIVN
+GURN SE Equity,BBG000BC0XD3,BBG000BC0VQ3,BBG001FFHX79,Materials,Specialty Chemicals,CH,Active,Gurit Holding AG,GURN
+HELN SE Equity,BBG000GR9ZD1,BBG000GR9XT9,BBG001FHWX96,Financials,Life Insurance,CH,Active,Helvetia Holding AG,HELN
+KNIN SE Equity,BBG00HCYJX38,BBG000HXJ2N8,BBG001FG4MP5,Industrials,Logistics Services,CH,Active,Kuehne + Nagel International A,KNIN
+KUD SE Equity,BBG000P5YRS3,BBG000P5YR21,BBG001FFK0Z6,Technology,Infrastructure Software,CH,Active,Kudelski SA,KUD
+LISP SE Equity,BBG000BC5MC3,BBG000BC5L53,BBG001FFJ2K0,Consumer Staples,Packaged Food,CH,Active,Chocoladefabriken Lindt & Spru,LISP
+LOGN SE Equity,BBG003FBHSJ2,BBG000CYR5S0,BBG001FFJ2R3,Technology,Consumer Electronics,CH,Active,Logitech International SA,LOGN
+LONN SE Equity,BBG00HCYR1Y5,BBG000NQXR55,BBG001FGB1G3,Health Care,Health Care Services,CH,Active,Lonza Group AG,LONN
+LUKN SE Equity,BBG000BS4H21,BBG000BS4GK3,BBG001FFK193,Financials,Banks,CH,Active,Luzerner Kantonalbank AG,LUKN
+NEAG SE Equity,BBG000BC5255,BBG000BC5157,BBG001FFK0Y7,Utilities,Electric Transmission & Dist,CH,Active,Naturenergie Holding AG,NEAG
+NESN SE Equity,BBG00HCYRYM6,BBG000CPBD63,BBG001GMBNW3,Consumer Staples,Packaged Food,CH,Active,Nestle SA,NESN
+NOVN SE Equity,BBG00HCYS021,BBG000NQV2C4,BBG001FHJTK7,Health Care,Large Pharma,CH,Active,Novartis AG,NOVN
+OERL SE Equity,BBG000BQGWC8,BBG000BQGTY1,BBG001GDFCJ8,Materials,Specialty Chemicals,CH,Active,OC Oerlikon Corp AG,OERL
+PSPN SE Equity,BBG000BQPG06,BBG000BQPF08,BBG001G6BCQ9,Real Estate,Office Owners & Developers,CH,Active,PSP Swiss Property AG,PSPN
+RIEN SE Equity,BBG000BCZ635,BBG000BCZ519,BBG001FFK291,Industrials,Other Machinery & Equipment,CH,Active,Rieter Holding AG,RIEN
+RO SE Equity,BBG000BCLWW1,BBG000BCLVP1,BBG001G98RP5,Health Care,Large Pharma,CH,Active,Roche Holding AG,RO
+ROG SE Equity,BBG00HCYS1N6,BBG000BNV243,BBG001G98RP5,Health Care,Large Pharma,CH,Active,Roche Holding AG,ROG
+SCHN SE Equity,BBG000BC8H86,BBG000BC8GG9,BBG001FFJ8Z1,Industrials,Comml & Res Bldg Equip & Sys,CH,Active,Schindler Holding AG,SCHN
+SCHP SE Equity,BBG000BC8L14,BBG000BC8JQ2,BBG001FFJ8Z1,Industrials,Comml & Res Bldg Equip & Sys,CH,Active,Schindler Holding AG,SCHP
+SCMN SE Equity,BBG00HCYS3Y0,BBG000CWDCF8,BBG001FLSY36,Communications,Wireline Telecommunications,CH,Active,Swisscom AG,SCMN
+SFZN SE Equity,BBG000BC8Z04,BBG000BC8YB5,BBG001FFK2R1,Health Care,Specialty & Generic Pharma,CH,Active,Siegfried Holding AG,SFZN
+SGKN SE Equity,BBG000NFPJM7,BBG000NFPH41,BBG001FJLKC8,Financials,Banks,CH,Active,St Galler Kantonalbank AG,SGKN
+SGSN SE Equity,BBG00HCYS8F0,BBG000BHR3B1,BBG001FFH810,Industrials,Professional Services,CH,Active,SGS SA,SGSN
+SOON SE Equity,BBG00HCYSKM5,BBG000RSPBY9,BBG001FGF5W2,Health Care,Medical Devices,CH,Active,Sonova Holding AG,SOON
+STMN SE Equity,BBG000C1Y7D6,BBG000C1Y6Q4,BBG001FMWJJ5,Health Care,Medical Devices,CH,Active,Straumann Holding AG,STMN
+SUN SE Equity,BBG000BMZ946,BBG000BMZ8K0,BBG001FFGYG8,Industrials,Flow Control Equipment,CH,Active,Sulzer AG,SUN
+TECN SE Equity,BBG000BNP5H9,BBG000BNP507,BBG001FFK3C5,Health Care,Life Science & Diagnostics,CH,Active,Tecan Group AG,TECN
+TXGN SE Equity,BBG000F8TT28,BBG000F8TS57,BBG001FN0RB8,Communications,Publishing,CH,Active,TX Group AG,TXGN
+UHR SE Equity,BBG00HCYVKS5,BBG000BVQ866,BBG001FFGYN0,Consumer Discretionary,"Apparel, Footwear & Acc Design",CH,Active,Swatch Group AG/The,UHR
+VATN SE Equity,BBG000BXCHB1,BBG000BXCGS5,BBG001FL2C05,Financials,Banks,CH,Active,Valiant Holding AG,VATN
+VONN SE Equity,BBG000BG5ZM4,BBG000BG5Z44,BBG001FFK3S8,Financials,Wealth Management,CH,Active,Vontobel Holding AG,VONN
+ZUGER SE Equity,BBG000BD9BX8,BBG000BD99T8,BBG001FFK406,Financials,Banks,CH,Active,Zuger Kantonalbank,ZUGER
+ZURN SE Equity,BBG00HCYVMX5,BBG000DM6PM0,BBG001FQWDP2,Financials,P&C Insurance,CH,Active,Zurich Insurance Group AG,ZURN
+BEAN SE Equity,BBG000BH3VC4,BBG000BH3TC9,BBG001FH5BG6,Industrials,Comml & Res Bldg Equip & Sys,CH,Active,Belimo Holding AG,BEAN
+CFT SE Equity,BBG000BD8438,BBG000BD82M1,BBG001FFJZ63,Financials,Institutional Brokerage,CH,Active,Cie Financiere Tradition SA,CFT
+GRKP SE Equity,BBG000BBRVZ6,BBG000BBRTM5,BBG001FFK031,Financials,Banks,CH,Active,Graubuendner Kantonalbank,GRKP
+HOLN SE Equity,BBG00HCYM4R2,BBG000BWZDP2,BBG001FFG0R0,Materials,Cement & Aggregates,CH,Active,Holcim AG,HOLN
+TEMN SE Equity,BBG000DDXJG1,BBG000DDXHG5,BBG001GL1Q86,Technology,Application Software,CH,Active,Temenos AG,TEMN
+VLRT SE Equity,BBG000BG11Q9,BBG000BG10T8,BBG001FFK1Y5,Financials,Investment Management,CH,Active,Valartis Group AG,VLRT
+ZUBN SE Equity,BBG000BLXMZ7,BBG000BLXMC2,BBG001FFK3Z0,Real Estate,Office Owners & Developers,CH,Active,Zueblin Immobilien Holding AG,ZUBN
+ARBN SE Equity,BBG000BDTL37,BBG000BDTJT4,BBG001FFJXL1,Consumer Discretionary,Building Products,CH,Active,Arbonia AG,ARBN
+ASCN SE Equity,BBG000BBMRK6,BBG000BBMQK8,BBG001FFHK86,Technology,Communications Equipment,CH,Active,Ascom Holding AG,ASCN
+BELL SE Equity,BBG000BGHP07,BBG000BGHN84,BBG001FFJYL9,Consumer Staples,Packaged Food,CH,Active,Bell Food Group AG,BELL
+BYS SE Equity,BBG000BPWCW4,BBG000BPWBS1,BBG001H7N007,Industrials,Metalworking Machinery,CH,Active,Bystronic AG,BYS
+DAE SE Equity,BBG000BBY4X0,BBG000BBY3P1,BBG001FFHR18,Industrials,Rubber & Plastic,CH,Active,Daetwyler Holding AG,DAE
+FHZN SE Equity,BBG000BQBBT1,BBG000BQB9Y0,BBG001FFJZN4,Industrials,Transport Operations & Services,CH,Active,Flughafen Zurich AG,FHZN
+SWTQ SE Equity,BBG000BD95M3,BBG000BD94M6,BBG001FFK2H2,Materials,Specialty Chemicals,CH,Active,Schweiter Technologies AG,SWTQ
+ZEHN SE Equity,BBG000BBC669,BBG000BBC552,BBG001FFK3W3,Industrials,Comml & Res Bldg Equip & Sys,CH,Active,Zehnder Group AG,ZEHN
+BSLN SE Equity,BBG000BWPHB9,BBG000BWPGB1,BBG001GMW2D7,Health Care,Biotech,CH,Active,Basilea Pharmaceutica AG,BSLN
+ISN SE Equity,BBG000BC3HG2,BBG000BC3GG4,BBG001FFK0N9,Real Estate,Multi Asset Class Own & Develop,CH,Active,Intershop Holding AG,ISN
+EMMN SE Equity,BBG000C1JW66,BBG000C1JV31,BBG001FMXTV8,Consumer Staples,Packaged Food,CH,Active,Emmi AG,EMMN
+HUBN SE Equity,BBG000BL62H1,BBG000BL61N6,BBG001FFK0C1,Industrials,Electrical Components,CH,Active,Huber + Suhner AG,HUBN
+KOMN SE Equity,BBG000BW8WS7,BBG000BW8VJ9,BBG001FKSLF3,Industrials,Metalworking Machinery,CH,Active,Komax Holding AG,KOMN
+OFN SE Equity,BBG000BC6TJ0,BBG000BC6RR5,BBG001FFK1W7,Industrials,Printing Services,CH,Active,Orell Fuessli AG,OFN
+STLN SE Equity,BBG000BMLG54,BBG000BMLDR7,BBG001FFK3Q0,Materials,Steel Producers,CH,Active,Swiss Steel Holding AG,STLN
+YPSN SE Equity,BBG000BTC8J2,BBG000BTC786,BBG001HB4M10,Health Care,Specialty & Generic Pharma,CH,Active,Ypsomed Holding AG,YPSN
+EVE SE Equity,BBG000NHWC86,BBG000NHW9T0,BBG001GZ6B01,Health Care,Biotech,CH,Active,Evolva Holding SA,EVE
+IFCN SE Equity,BBG000CMKZX1,BBG000CMKZ52,BBG001GFDJY3,Technology,Semiconductor Mfg,CH,Active,Inficon Holding AG,IFCN
+KARN SE Equity,BBG000BC44Q9,BBG000BC43V5,BBG001FFJ0G9,Industrials,Material Handling Machinery,CH,Active,Kardex Holding AG,KARN
+AVOL SE Equity,BBG000HHBRP4,BBG000HHBQD9,BBG001H7G3H1,Consumer Discretionary,Other Spec Retail - Discr,CH,Active,Avolta AG,AVOL
+EFGN SE Equity,BBG000CLT3Q3,BBG000CLT294,BBG001FK7NT7,Financials,Wealth Management,CH,Active,EFG International AG,EFGN
+KURN SE Equity,BBG000BX18D1,BBG000BX17Y0,BBG001GGZBH3,Health Care,Biotech,CH,Active,Kuros Biosciences AG,KURN
+MOBN SE Equity,BBG000FF4V97,BBG000FF3QZ0,BBG001GP0TX4,Real Estate,Multi Asset Class Own & Develop,CH,Active,Mobimo Holding AG,MOBN
+SQN SE Equity,BBG000BVVJ39,BBG000BVVG99,BBG001GG0HV2,Financials,Institutional Brokerage,CH,Active,Swissquote Group Holding SA,SQN
+VAHN SE Equity,BBG000C8WGK5,BBG000C8WDZ6,BBG001FF5ML0,Financials,P&C Insurance,CH,Active,Vaudoise Assurances Holding SA,VAHN
+CLTN SE Equity,BBG000NHGC20,BBG000NHG9V5,BBG001FJ0XN1,Health Care,Medical Equipment,CH,Active,Coltene Holding AG,CLTN
+IMPN SE Equity,BBG000BZYT53,BBG000BZYRS2,BBG001FLMV56,Industrials,Infrastructure Construction,CH,Active,Implenia AG,IMPN
+PGHN SE Equity,BBG000DYF717,BBG000DYF655,BBG001FQLJ80,Financials,Private Equity,CH,Active,Partners Group Holding AG,PGHN
+BBN SE Equity,BBG000C42RY8,BBG000C42R87,BBG001FKBY81,Financials,Investment Management,CH,Active,Bellevue Group AG,BBN
+BCHN SE Equity,BBG000BSN6D2,BBG000BSN5S8,BBG001GLKGC2,Industrials,Flow Control Equipment,CH,Active,Burckhardt Compression Holding,BCHN
+BSKP SE Equity,BBG000BC4Y56,BBG000BC4WY8,BBG001FFJYH4,Financials,Banks,CH,Active,Basler Kantonalbank,BSKP
+EPH SE Equity,BBG000CT3S16,BBG000CT2PT3,BBG001GGNLS2,Real Estate,Multi Asset Class Own & Develop,CY,Active,EPH European Property Holdings,EPH
+REHN SE Equity,BBG000BDZCQ5,BBG000BDZ9Z2,BBG001FFK3L5,Utilities,Power Generation,CH,Active,Romande Energie Holding SA,REHN
+INRN SE Equity,BBG000BW8TQ6,BBG000BW8SN1,BBG001FKSBM7,Industrials,Material Handling Machinery,CH,Active,Interroll Holding AG,INRN
+MBTN SE Equity,BBG000GLT1F5,BBG000GLT0J3,BBG001FJN6H2,Energy,Renewable Energy Equipment,CH,Active,Meyer Burger Technology AG,MBTN
+SLHN SE Equity,BBG00HCYSGS8,BBG000BRJTZ5,BBG001FFGYP8,Financials,Life Insurance,CH,Active,Swiss Life Holding AG,SLHN
+VZN SE Equity,BBG000CR3DP7,BBG000CR3CG9,BBG001FHB867,Financials,Wealth Management,CH,Active,VZ Holding AG,VZN
+MTG SE Equity,BBG000BCHBS7,BBG000BCH9Y5,BBG001FFK3V4,Industrials,Comml & Res Bldg Equip & Sys,CH,Active,Meier Tobler Group AG,MTG
+UBSG SE Equity,BBG00HCYVBT4,BBG007936GV2,BBG007936537,Financials,Wealth Management,CH,Active,UBS Group AG,UBSG
+UHRN SE Equity,BBG000HFPGZ6,BBG000HFPD29,BBG001FFGYN0,Consumer Discretionary,"Apparel, Footwear & Acc Design",CH,Active,Swatch Group AG/The,UHRN
+BALN SE Equity,BBG00HCY9166,BBG000BVQZ75,BBG001FFGYZ7,Financials,Life Insurance,CH,Active,Baloise Holding AG,BALN
+LEHN SE Equity,BBG000BNVC50,BBG000BNVB07,BBG001FFK157,Industrials,Electrical Components,CH,Active,LEM Holding SA,LEHN
+ODHN SE Equity,BBG000VDZQH2,BBG000VDZPY5,BBG001H72DB0,Real Estate,Multi Asset Class Own & Develop,CH,Active,Orascom Development Holding AG,ODHN
+ARYN SE Equity,BBG000BHBSN0,BBG000BHBQ09,BBG001HFN562,Consumer Staples,Packaged Food,CH,Active,Aryzta AG,ARYN
+CFR SE Equity,BBG00HCYBN74,BBG000BSJVR7,BBG001FFJ7J1,Consumer Discretionary,"Apparel, Footwear & Acc Design",CH,Active,Cie Financiere Richemont SA,CFR
+BAER SE Equity,BBG00HCY7SK3,BBG000PJ8DQ5,BBG001GCCNK7,Financials,Wealth Management,CH,Active,Julius Baer Group Ltd,BAER
+CPHN SE Equity,BBG000FY7FN2,BBG000FY7D84,BBG001FNNS21,Materials,Paper & Pulp Mills,CH,Active,CPH Chemie & Papier Holding AG,CPHN
+METN SE Equity,BBG000BC6NB1,BBG000BC6MK3,BBG001FFK1G5,Consumer Discretionary,Household Appliances,CH,Active,Metall Zug AG,METN
+SIKA SE Equity,BBG000BC98J3,BBG000BC97P8,BBG001FFJ9Z9,Materials,Building Materials,CH,Active,Sika AG,SIKA
+BOSN SE Equity,BBG000BBW6B1,BBG000BBW587,BBG001FFHMS0,Industrials,Industrial Wholesale & Rental,CH,Active,Bossard Holding AG,BOSN
+MOZN SE Equity,BBG000BQ53Q9,BBG000BQ5370,BBG001FFK3D4,Consumer Discretionary,Electronics & Appliances Stores,CH,Active,Mobilezone Holding AG,MOZN
+SPSN SE Equity,BBG000CGWQ98,BBG000CGWPH1,BBG001G1JG74,Real Estate,Multi Asset Class Own & Develop,CH,Active,Swiss Prime Site AG,SPSN
+SREN SE Equity,BBG00HCYV7Y7,BBG001P1Z4F4,BBG001P1Z106,Financials,Reinsurance,CH,Active,Swiss Re AG,SREN
+BKW SE Equity,BBG0025BSRL2,BBG0025BSRJ5,BBG0025BSRF9,Utilities,Power Generation,CH,Active,BKW AG,BKW
+DKSH SE Equity,BBG002NDS8Z5,BBG000D16BC8,BBG001FQP1K1,Communications,Advertising & Marketing,CH,Active,DKSH Holding AG,DKSH
+ZUGN SE Equity,BBG0035JJCB7,BBG0035JJC54,BBG0035JG2X8,Real Estate,Multi Asset Class Own & Develop,CH,Active,Zug Estates Holding AG,ZUGN
+AUTN SE Equity,BBG001P6PW62,BBG001LRJQB4,BBG001J6Z852,Industrials,Commercial Vehicles,CH,Active,Autoneum Holding AG,AUTN
+LEON SE Equity,BBG003FH5S39,BBG003FH03L9,BBG003FH03H4,Financials,Investment Management,CH,Active,Leonteq AG,LEON
+UBXN SE Equity,BBG000RRRM48,BBG000RRRLH6,BBG001GW3P00,Technology,Semiconductor Devices,CH,Active,u-blox Holding AG,UBXN
+BRKN SE Equity,BBG000C30PC0,BBG000C30NR9,BBG001FN65J2,Industrials,Building Construction,CH,Active,Burkhalter Holding AG,BRKN
+CMBN SE Equity,BBG005CW2HD0,BBG0015QF8P3,BBG001H0B1Z5,Financials,Banks,CH,Active,Cembra Money Bank AG,CMBN
+HIAG SE Equity,BBG006BKLPN5,BBG006BKLPJ0,BBG006BKLPG3,Real Estate,Real Estate Services,CH,Active,Hiag Immobilien Holding AG,HIAG
+SFSN SE Equity,BBG006996527,BBG000MJGT84,BBG001FQNYT2,Industrials,Fabricated Metal & Hardware,CH,Active,SFS Group AG,SFSN
+TKBP SE Equity,BBG0067L9FX3,BBG000BZVSJ3,BBG001FHXM17,Financials,Banks,CH,Active,Thurgauer Kantonalbank,TKBP
+AMS SE Equity,BBG000P3R764,BBG000P3R5F8,BBG001H885T0,Technology,Semiconductor Devices,AT,Active,ams-OSRAM AG,AMS
+COPN SE Equity,BBG00CWX1FP3,BBG00CWWYK50,BBG00CWWYJG1,Health Care,Specialty & Generic Pharma,IE,Active,COSMO Pharmaceuticals NV,COPN
+COTN SE Equity,BBG000J5YMV7,BBG000J5YLK1,BBG001FHDJ25,Technology,Electronics Components,CH,Active,Comet Holding AG,COTN
+MOLN SE Equity,BBG0076L94L0,BBG000QJKZW4,BBG001HD6WK1,Health Care,Biotech,CH,Active,Molecular Partners AG,MOLN
+SANN SE Equity,BBG000QPCJ73,BBG000QPCHP7,BBG001HC2928,Health Care,Biotech,CH,Active,Santhera Pharmaceuticals Holdi,SANN
+ALSN SE Equity,BBG000BG8GY0,BBG000BG8F09,BBG001FFJXS4,Consumer Discretionary,Consumer Elec & Applc Whslrs,CH,Active,ALSO Holding AG,ALSN
+VACN SE Equity,BBG00CMBNV19,BBG00CM52ZC4,BBG00CM52SS3,Industrials,Fabricated Metal & Hardware,CH,Active,VAT Group AG,VACN
+DESN SE Equity,BBG000C4G900,BBG000C4G7T3,BBG001FHTGV2,Health Care,Specialty & Generic Pharma,CH,Active,Dottikon Es Holding AG,DESN
+GALE SE Equity,BBG00G6TLHX7,BBG00G6TLHV9,BBG0074DT535,Health Care,Health Care Supply Chain,CH,Active,Galenica AG,GALE
+IDIA SE Equity,BBG00FXVZ9Y6,BBG00FXVZ9W8,BBG00FXVZ6D5,Health Care,Biotech,CH,Active,Idorsia Ltd,IDIA
+IREN SE Equity,BBG00D1X40Z4,BBG00D1X40W7,BBG00D1X3YH1,Real Estate,Real Estate Services,CH,Active,Investis Holding SA,IREN
+DOCM SE Equity,BBG0032JXZG8,BBG000PJNZT6,BBG001GCCYR6,Consumer Staples,Food & Drug Stores,CH,Active,DocMorris AG,DOCM
+LAND SE Equity,BBG00H4DZQF7,BBG004LN7CS3,BBG001GZP7C6,Energy,Renewable Energy Equipment,CH,Active,Landis+Gyr Group AG,LAND
+MED SE Equity,BBG00K68NZ53,BBG00K68NZ35,BBG00K68N7Z2,Health Care,Medical Devices,CH,Active,Medartis Holding AG,MED
+SENS SE Equity,BBG00K683BY6,BBG00K683BW8,BBG00K680P69,Technology,Semiconductor Devices,CH,Active,Sensirion Holding AG,SENS
+SIGN SE Equity,BBG00LWT8H62,BBG00LWT8H44,BBG00823W971,Materials,Containers & Packaging,CH,Active,SIG Group AG,SIGN
+ALC SE Equity,BBG00NPWGYL6,BBG00NPWGYJ9,BBG00NPWGXK9,Health Care,Medical Equipment,CH,Active,Alcon Inc,ALC
+MOVE SE Equity,BBG00NPRXKM7,BBG00NPRXKK9,BBG00NDW8F57,Health Care,Medical Devices,CH,Active,Medacta Group SA,MOVE
+SRAIL SE Equity,BBG00NNQ2FK8,BBG000C2R2G0,BBG001G69VM4,Industrials,Railroad Rolling Stock,CH,Active,Stadler Rail AG,SRAIL
+JFN SE Equity,BBG000BFH022,BBG000BFGYS1,BBG001FGYLG4,Industrials,Transit Services,CH,Active,Jungfraubahn Holding AG,JFN
+ORON SE Equity,BBG000QHX3N5,BBG000QHX391,BBG001GMFFY4,Consumer Staples,Packaged Food,CH,Active,Orior AG,ORON
+SWON SE Equity,BBG00QKVNRM2,BBG005MBGXZ1,BBG005MBGXY2,Technology,IT Services,CH,Active,Softwareone Holding AG,SWON
+RLF SE Equity,BBG000C4NCF9,BBG000C4N8Q6,BBG001FLBHM0,Health Care,Specialty & Generic Pharma,CH,Active,Relief Therapeutics Holding AG,RLF
+VETN SE Equity,BBG00TLBTT30,BBG00TLBTT12,BBG001FFK3N3,Materials,Containers & Packaging,CH,Active,Vetropack Holding AG,VETN
+PEAN SE Equity,BBG001864VL9,BBG0017BMNC7,BBG001H24Y78,Real Estate,Residential Owners & Developers,CH,Active,Peach Property Group AG,PEAN
+VZUG SE Equity,BBG00TJZ0FL1,BBG00TGJST94,BBG00TGJSBF6,Consumer Discretionary,Household Appliances,CH,Active,V-ZUG Holding AG,VZUG
+MEDX SE Equity,BBG012NVMDS7,BBG011FFPBC1,BBG011FFP918,Health Care,Medical Equipment,CH,Active,Medmix AG,MEDX
+AERO SE Equity,BBG010RKHJJ4,BBG00ZSB53Q7,BBG00W26QLM4,Industrials,Aircraft & Parts,CH,Active,Montana Aerospace AG,AERO
+AEVS SE Equity,BBG000BYJK34,BBG000BYJJH2,BBG001G1Q4D6,Financials,Private Equity,CH,Active,AEVIS VICTORIA SA,AEVS
+BCGE SE Equity,BBG000BGCBD9,BBG000BGC9N3,BBG001FFY759,Financials,Banks,CH,Active,Banque Cantonale de Geneve,BCGE
+PPGN SE Equity,BBG0100P02R8,BBG0100P02P0,BBG0100P00D7,Health Care,Biotech,CH,Active,PolyPeptide Group AG,PPGN
+SKAN SE Equity,BBG000PHNK95,BBG000PHNJ07,BBG001H216J9,Health Care,Life Science & Diagnostics,CH,Active,SKAN Group AG,SKAN
+WARN SE Equity,BBG000BJBJR2,BBG000BJBHZ7,BBG001FFK3T7,Real Estate,Real Estate Services,CH,Active,Warteck Invest AG,WARN
+WKBN SE Equity,BBG000BHMYC7,BBG000BHMXV8,BBG001FFL003,Financials,Banks,CH,Active,Walliser Kantonalbank,WKBN
+ACLN SE Equity,BBG0194CY7L2,BBG018XV6BB3,BBG018XV6964,Industrials,Engine & Transmission,CH,Active,Accelleron Industries AG,ACLN
+SDZ SE Equity,BBG01J3DD3W9,BBG01J3DD3T3,BBG01H0753L0,Health Care,Specialty & Generic Pharma,CH,Active,Sandoz Group AG,SDZ
