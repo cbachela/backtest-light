@@ -172,12 +172,5 @@ cython_debug/
 # data/*
 
 # data files
-data/*.csv
-data/*.json
-data/*.xlsx
-data/*.xls
-data/*.pickle
-data/*.pkl
-data/*.parquet
-data/*.feather
-data/*.h5
+*.parquet
+*.csv
