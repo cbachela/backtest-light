@@ -40,7 +40,7 @@ sys.path.append(project_root)
 sys.path.append(src_path)
 
 # Local modules imports
-from helper_functions import load_data_msci
+from btlight.helper_functions import load_data_msci
 from estimation.covariance import Covariance
 from estimation.black_litterman import bl_posterior_mu_sigma
 

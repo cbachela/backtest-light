@@ -45,23 +45,23 @@ sys.path.append(project_root)
 sys.path.append(src_path)
 
 # Local modules imports
-from helper_functions import (
+from btlight.helper_functions import (
     load_data_spi,
     load_pickle,
 )
-from estimation.covariance import Covariance
-from estimation.black_litterman import (
+from btlight.estimation.covariance import Covariance
+from btlight.estimation.black_litterman import (
     bl_posterior_mean,                              # NEW!
     generate_views_from_scores,                     # NEW!
 )
-from optimization.optimization import (
+from btlight.optimization.optimization import (
     BlackLitterman,                                 # NEW!
 )
-from backtesting.backtest_item_builder_classes import (
+from btlight.backtesting.item_builder_classes import (
     SelectionItemBuilder,
     OptimizationItemBuilder,
 )
-from backtesting.backtest_item_builder_functions import (
+from btlight.backtesting.item_builder_functions import (
     # Selection item builder functions
     bibfn_selection_min_volume,
     bibfn_selection_gaps,
@@ -74,9 +74,9 @@ from backtesting.backtest_item_builder_functions import (
     bibfn_budget_constraint,
     bibfn_box_constraints,
 )
-from backtesting.backtest_data import BacktestData
-from backtesting.backtest_service import BacktestService
-from backtesting.backtest import Backtest
+from btlight.backtesting.data import BacktestData
+from btlight.backtesting.service import BacktestService
+from btlight.backtesting.backtest import Backtest
 
 
 

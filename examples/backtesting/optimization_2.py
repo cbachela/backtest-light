@@ -1,10 +1,10 @@
 ############################################################################
-### CODING EXAMPLES - OPTIMIZATION 3 - USING LIBRARY cvxpy
+### QPMwP CODING EXAMPLES - OPTIMIZATION 2
 ############################################################################
 
 # --------------------------------------------------------------------------
 # Cyril Bachelard
-# This version:     22.12.2025
+# This version:     18.01.2025
 # First version:    18.01.2025
 # --------------------------------------------------------------------------
 
@@ -13,7 +13,7 @@
 # %reload_ext autoreload
 # %autoreload 2
 
-# pip install cvxpy
+
 
 
 # Standard library imports
@@ -23,7 +23,6 @@ import sys
 # Third party imports
 import numpy as np
 import pandas as pd
-import cvxpy as cp
 
 # Add the project root directory to Python path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -32,10 +31,11 @@ sys.path.append(project_root)
 sys.path.append(src_path)
 
 # Local modules imports
-from helper_functions import load_data_msci
+from btlight.helper_functions import load_data_msci
 from estimation.covariance import Covariance
 from estimation.expected_return import ExpectedReturn
 from optimization.constraints import Constraints
+from optimization.quadratic_program import QuadraticProgram
 from optimization.optimization_data import OptimizationData
 from optimization.optimization import MeanVariance
 
@@ -108,103 +108,30 @@ constraints.linear
 
 
 # --------------------------------------------------------------------------
-# Solve mean-variance optimal portfolios with cvxpy
+# Solve mean-variance optimal portfolios - using class QuadraticProgram
 # --------------------------------------------------------------------------
 
-# Define parameters
-risk_aversion = 3
-N = len(constraints.ids)
 
-# Objective function parameters
-q = mu.to_numpy() * -1
-P = covariance.matrix.to_numpy() * risk_aversion
-
-# Lower and upper bounds
-lb = constraints.box.get('lower').to_numpy()
-ub = constraints.box.get('upper').to_numpy()
-
-# Get linear equality and inequality constraints
+# Extract the constraints in the format required by the solver
 GhAb = constraints.to_GhAb()
-G, h = GhAb.get('G'), GhAb.get('h')
-A, b = GhAb.get('A'), GhAb.get('b')
+GhAb
 
 
-# x_init = np.array(self.params.x_init)
-transaction_cost = None
-l1 = constraints.l1
+risk_aversion = 3
 
+qp = QuadraticProgram(
+    P = covariance.matrix.to_numpy() * risk_aversion,
+    q = expected_return.vector.to_numpy() * -1,
+    G = GhAb['G'],
+    h = GhAb['h'],
+    A = GhAb['A'],
+    b = GhAb['b'],
+    lb = constraints.box['lower'].to_numpy(),
+    ub = constraints.box['upper'].to_numpy(),
+    solver = 'cvxopt',
+)
 
-# Decision vector and constraints list
-x = cp.Variable(N, name='weights')
-cons_list = [x >= lb, x <= ub]
-
-# # Turnover cost
-# if transaction_cost is not None:
-#     aux_turnover = cp.Variable(N)
-#     constraints += [
-#         x - aux_turnover <= x_init,
-#         x + aux_turnover >= x_init,
-#         aux_turnover >= 0
-#     ]
-#     obj = q @ x + 0.5 * cp.quad_form(x, P) + transaction_cost * cp.sum(aux_turnover)
-# else:
-
-obj = q @ x + 0.5 * cp.quad_form(x, P)
-
-
-# Linear constraints
-if G is not None:
-    cons_list.append(G @ x <= h)
-if A is not None:
-    cons_list.append(A @ x == b)
-
-
-# # Turnover constraint
-# if 'turnover' in l1:
-#     rhs = l1['turnover'].rhs
-#     x0 = np.array(l1['turnover'].x0)
-#     aux = cp.Variable(N)
-#     constraints += [
-#         x - aux <= x0,
-#         x + aux >= x0,
-#         aux >= 0,
-#         cp.sum(aux) <= rhs
-#     ]
-
-# Finalize problem
-model = cp.Problem(cp.Minimize(obj), cons_list)
-model
-
-# Solve the problem
-# model.solve(solver=cp.SCIP, verbose=False)
-model.solve(solver=cp.CVXOPT, verbose=False)
-
-
-# # Extract solution and objective
-# if model.status not in ["optimal", "optimal_inaccurate"]:
-#     raise ValueError(f"Optimization failed. Status: {model.status}")
-
-
-x_val = model.variables()[0].value
-obj_val = model.value
-status = model.status
-
-# Store results
-results = {
-    "weights": x_val,
-    "objective": obj_val,
-    "status": status,
-}
-
-
-# The optimal Lagrange multiplier for a constraint is stored in `constraint.dual_value`.
-cons_list[0].dual_value
-
-
-
-
-
-
+qp.problem_data
 
 qp.is_feasible()
 

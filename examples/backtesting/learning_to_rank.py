@@ -41,7 +41,7 @@ sys.path.append(project_root)
 sys.path.append(src_path)
 
 # Local modules imports
-from backtesting.backtest_data import BacktestData
+from btlight.backtesting.data import BacktestData
 
 
 

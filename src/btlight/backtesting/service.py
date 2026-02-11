@@ -18,16 +18,16 @@ import numpy as np
 import pandas as pd
 
 # Local modules imports
-from optimization.optimization import (
+from btlight.optimization.optimization import (
     Optimization,
     EmptyOptimization,
 )
-from optimization.optimization_data import OptimizationData
-from optimization.constraints import Constraints
-from backtesting.selection import Selection
-from backtesting.strategy import Strategy
-from backtesting.portfolio import floating_weights
-from backtesting.backtest_item_builder_classes import (
+from btlight.optimization.optimization_data import OptimizationData
+from btlight.optimization.constraints import Constraints
+from btlight.backtesting.selection import Selection
+from btlight.backtesting.strategy import Strategy
+from btlight.backtesting.portfolio import floating_weights
+from btlight.backtesting.item_builder_classes import (
     SelectionItemBuilder,
     OptimizationItemBuilder,
 )

@@ -34,18 +34,18 @@ sys.path.append(project_root)
 sys.path.append(src_path)
 
 # Local modules imports
-from helper_functions import load_data_msci
-from optimization.constraints import Constraints
-from optimization.optimization import LeastSquares
-from backtesting.backtest_item_builder_classes import (
+from btlight.helper_functions import load_data_msci
+from btlight.optimization.constraints import Constraints
+from btlight.optimization.optimization import LeastSquares
+from btlight.backtesting.item_builder_classes import (
     OptimizationItemBuilder,
 )
-from backtesting.backtest_item_builder_functions import (
+from btlight.backtesting.item_builder_functions import (
     bibfn_return_series,
     bibfn_bm_series,
 )
-from backtesting.backtest_service import BacktestService
-from backtesting.backtest import Backtest
+from btlight.backtesting.service import BacktestService
+from btlight.backtesting.backtest import Backtest
 
 
 
@@ -56,7 +56,7 @@ from backtesting.backtest import Backtest
 # --------------------------------------------------------------------------
 
 N = 24
-data = load_data_msci(path = '../data/', n = N)
+data = load_data_msci(path = '../../data/', n = N)
 data
 
 

@@ -42,15 +42,15 @@ sys.path.append(project_root)
 sys.path.append(src_path)
 
 # Local modules imports
-from helper_functions import load_data_spi, load_pickle
-from estimation.covariance import Covariance
-from estimation.expected_return import ExpectedReturn
-from optimization.optimization import MeanVariance
-from backtesting.backtest_item_builder_classes import (
+from btlight.helper_functions import load_data_spi, load_pickle
+from btlight.estimation.covariance import Covariance
+from btlight.estimation.expected_return import ExpectedReturn
+from btlight.optimization.optimization import MeanVariance
+from btlight.backtesting.item_builder_classes import (
     SelectionItemBuilder,
     OptimizationItemBuilder,
 )
-from backtesting.backtest_item_builder_functions import (
+from btlight.backtesting.item_builder_functions import (
     bibfn_selection_min_volume,
     bibfn_selection_gaps,
     bibfn_return_series,
@@ -58,9 +58,9 @@ from backtesting.backtest_item_builder_functions import (
     bibfn_box_constraints,
     bibfn_size_dependent_upper_bounds,
 )
-from backtesting.backtest_data import BacktestData
-from backtesting.backtest_service import BacktestService
-from backtesting.backtest import Backtest
+from btlight.backtesting.data import BacktestData
+from btlight.backtesting.service import BacktestService
+from btlight.backtesting.backtest import Backtest
 
 
 

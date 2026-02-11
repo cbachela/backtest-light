@@ -20,7 +20,8 @@ import qpsolvers
 import scipy.sparse as spa
 
 # Local modules imports
-from estimation.covariance import is_pos_def, make_pos_def
+from btlight.estimation.covariance import is_pos_def, make_pos_def
+
 
 
 

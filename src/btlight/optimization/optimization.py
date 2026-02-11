@@ -20,16 +20,16 @@ import pandas as pd
 import cvxpy as cp
 
 # Local modules
-from helper_functions import to_numpy
-from estimation.covariance import Covariance
-from estimation.expected_return import ExpectedReturn
-from estimation.black_litterman import (
+from btlight.helper_functions import to_numpy
+from btlight.estimation.covariance import Covariance
+from btlight.estimation.expected_return import ExpectedReturn
+from btlight.estimation.black_litterman import (
     bl_posterior_mu_sigma,
     generate_views_from_scores,
 )
-from optimization.optimization_data import OptimizationData
-from optimization.constraints import Constraints
-from optimization.quadratic_program import QuadraticProgram
+from btlight.optimization.optimization_data import OptimizationData
+from btlight.optimization.constraints import Constraints
+from btlight.optimization.quadratic_program import QuadraticProgram
 
 
 

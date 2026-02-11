@@ -20,9 +20,9 @@ import numpy as np
 import pandas as pd
 
 # Local modules imports
-from backtesting.portfolio import Portfolio
-from backtesting.strategy import Strategy
-from backtesting.backtest_service import BacktestService
+from btlight.backtesting.portfolio import Portfolio
+from btlight.backtesting.strategy import Strategy
+from btlight.backtesting.service import BacktestService
 
 
 

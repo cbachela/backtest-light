@@ -38,22 +38,22 @@ sys.path.append(project_root)
 sys.path.append(src_path)
 
 # Local modules imports
-from helper_functions import load_data_msci
-from estimation.covariance import Covariance
-from estimation.expected_return import ExpectedReturn
-from optimization.optimization import MeanVariance
-from backtesting.backtest_item_builder_classes import (
+from btlight.helper_functions import load_data_msci
+from btlight.estimation.covariance import Covariance
+from btlight.estimation.expected_return import ExpectedReturn
+from btlight.optimization.optimization import MeanVariance
+from btlight.backtesting.item_builder_classes import (
     SelectionItemBuilder,
     OptimizationItemBuilder,
 )
-from backtesting.backtest_item_builder_functions import (
+from btlight.backtesting.item_builder_functions import (
     bibfn_selection_data_random,
     bibfn_return_series,
     bibfn_budget_constraint,
     bibfn_box_constraints,
 )
-from backtesting.backtest_service import BacktestService
-from backtesting.backtest import Backtest
+from btlight.backtesting.service import BacktestService
+from btlight.backtesting.backtest import Backtest
 
 
 
@@ -64,7 +64,7 @@ from backtesting.backtest import Backtest
 # --------------------------------------------------------------------------
 
 N = 24
-data = load_data_msci(path = '../data/', n = N)
+data = load_data_msci(path = '../../data/', n = N)
 data
 
 
