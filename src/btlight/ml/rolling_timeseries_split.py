@@ -315,7 +315,11 @@ class ObservationGridRollingSplit(BaseCrossValidator):
         data = X if X is not None else y
         assert data is not None, "Either X or y must be provided"
 
-        obs_dates = self.observation_dates if self.observation_dates is not None else self._infer_observation_dates_from_data(data)
+        obs_dates = (
+            self.observation_dates
+            if self.observation_dates is not None
+            else self._infer_observation_dates_from_data(data)
+        )
 
         for train_start, train_end, test_start, test_end in iter_rolling_dates_from_grid(
             obs_dates,

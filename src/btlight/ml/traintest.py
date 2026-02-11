@@ -104,7 +104,6 @@ def train_func(model, X, y, train_idx, target_asset=None):
     joblib.dump(model, f"/tmp/{resolved_target}_{start_dt}_{end_dt}_model.pkl")
 
 
-
 def test_func(X, y, train_idx, test_idx, target_asset=None):
     """
     Tests a trained model on the specified target asset and returns the predictions.

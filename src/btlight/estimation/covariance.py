@@ -9,14 +9,12 @@
 # --------------------------------------------------------------------------
 
 
-
 # # Standard library imports
 from typing import Union, Optional
 
 # Third party imports
 import numpy as np
 import pandas as pd
-
 
 
 # TODO:
@@ -46,15 +44,9 @@ import pandas as pd
 #    [ ] make_covariance_matrix (from correlation matrix)
 
 
-
-
-
 class CovarianceSpecification(dict):
 
-    def __init__(self,
-                 method='pearson',
-                 check_positive_definite=False,
-                 **kwargs):
+    def __init__(self, method="pearson", check_positive_definite=False, **kwargs):
         super().__init__(
             method=method,
             check_positive_definite=check_positive_definite,
@@ -64,9 +56,7 @@ class CovarianceSpecification(dict):
 
 class Covariance:
 
-    def __init__(self,
-                 spec: Optional[CovarianceSpecification] = None,
-                 **kwargs):
+    def __init__(self, spec: Optional[CovarianceSpecification] = None, **kwargs):
         self.spec = CovarianceSpecification() if spec is None else spec
         self.spec.update(kwargs)
         self._matrix: Union[pd.DataFrame, np.ndarray, None] = None
@@ -80,9 +70,7 @@ class Covariance:
         if isinstance(value, CovarianceSpecification):
             self._spec = value
         else:
-            raise ValueError(
-                'Input value must be of type CovarianceSpecification.'
-            )
+            raise ValueError("Input value must be of type CovarianceSpecification.")
         return None
 
     @property
@@ -94,9 +82,7 @@ class Covariance:
         if isinstance(value, (pd.DataFrame, np.ndarray)):
             self._matrix = value
         else:
-            raise ValueError(
-                'Input value must be a pandas DataFrame or a numpy array.'
-            )
+            raise ValueError("Input value must be a pandas DataFrame or a numpy array.")
         return None
 
     def estimate(
@@ -105,16 +91,14 @@ class Covariance:
         inplace: bool = True,
     ) -> Union[pd.DataFrame, np.ndarray, None]:
 
-        estimation_method = self.spec['method']
+        estimation_method = self.spec["method"]
 
-        if estimation_method == 'pearson':
+        if estimation_method == "pearson":
             cov_matrix = cov_pearson(X=X)
         else:
-            raise ValueError(
-                'Estimation method not recognized.'
-            )
+            raise ValueError("Estimation method not recognized.")
 
-        if self.spec.get('check_positive_definite'):
+        if self.spec.get("check_positive_definite"):
             if not is_pos_def(cov_matrix):
                 cov_matrix = make_pos_def(cov_matrix)
 
@@ -125,21 +109,17 @@ class Covariance:
             return cov_matrix
 
 
-
-
-
-
 # --------------------------------------------------------------------------
 # Functions
 # --------------------------------------------------------------------------
 
-def cov_pearson(X:  Union[pd.DataFrame, np.ndarray]) -> Union[pd.DataFrame, np.ndarray]:
+
+def cov_pearson(X: Union[pd.DataFrame, np.ndarray]) -> Union[pd.DataFrame, np.ndarray]:
     if isinstance(X, pd.DataFrame):
         covmat = X.cov()
     else:
         covmat = np.cov(X, rowvar=False)
     return covmat
-
 
 
 def is_pos_def(B):
@@ -181,4 +161,3 @@ def make_pos_def(A):
         k += 1
 
     return A3
-

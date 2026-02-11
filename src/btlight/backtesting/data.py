@@ -9,7 +9,6 @@
 # --------------------------------------------------------------------------
 
 
-
 # Standard library imports
 from typing import Optional
 import warnings
@@ -18,10 +17,7 @@ import warnings
 import pandas as pd
 
 
-
-
-
-class BacktestData():
+class BacktestData:
 
     def __init__(self):
         pass
@@ -34,21 +30,17 @@ class BacktestData():
         fillna_value: Optional[float] = None,
     ) -> pd.DataFrame:
 
-        X = self.market_data.pivot_table(
-            index='date',
-            columns='id',
-            values='price'
-        )
+        X = self.market_data.pivot_table(index="date", columns="id", values="price")
         if ids is None:
             ids = X.columns
         if end_date is None:
-            end_date = X.index.max().strftime('%Y-%m-%d')
+            end_date = X.index.max().strftime("%Y-%m-%d")
         if width is None:
             width = X.shape[0] - 1
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            X = X[X.index <= end_date][ids].tail(width+1).pct_change(fill_method=None).iloc[1:]
+            X = X[X.index <= end_date][ids].tail(width + 1).pct_change(fill_method=None).iloc[1:]
             if fillna_value is not None:
                 X.fillna(fillna_value, inplace=True)
             return X
@@ -61,14 +53,14 @@ class BacktestData():
     ) -> pd.DataFrame:
 
         X = self.market_data.pivot_table(
-            index = 'date',
-            columns = 'id',
-            values = 'liquidity',
+            index="date",
+            columns="id",
+            values="liquidity",
         )
         if ids is None:
             ids = X.columns
         if end_date is None:
-            end_date = X.index.max().strftime('%Y-%m-%d')
+            end_date = X.index.max().strftime("%Y-%m-%d")
         if width is None:
             width = X.shape[0]
         return X[X.index <= end_date][ids].tail(width)
@@ -82,15 +74,14 @@ class BacktestData():
     ) -> pd.DataFrame:
 
         X = self.jkp_data.pivot_table(
-            index = 'date',
-            columns = 'id',
-            values = field,
+            index="date",
+            columns="id",
+            values=field,
         )
         if ids is None:
             ids = X.columns
         if end_date is None:
-            end_date = X.index.max().strftime('%Y-%m-%d')
+            end_date = X.index.max().strftime("%Y-%m-%d")
         if width is None:
             width = X.shape[0]
         return X[X.index <= end_date][ids].tail(width)
-

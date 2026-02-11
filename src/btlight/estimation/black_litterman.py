@@ -9,8 +9,6 @@
 # --------------------------------------------------------------------------
 
 
-
-
 # Standard library imports
 from typing import Union
 
@@ -19,13 +17,9 @@ import numpy as np
 import pandas as pd
 
 
-
-
-
-
 def bl_posterior_mu_sigma(
     mu_prior: pd.Series,
-    covmat: pd.DataFrame, 
+    covmat: pd.DataFrame,
     P: Union[np.ndarray, pd.DataFrame],
     q: Union[np.ndarray, pd.Series],
     Psi: Union[np.ndarray, pd.DataFrame],
@@ -123,7 +117,6 @@ def bl_posterior_mu_sigma(
         Posterior covariance matrix \\( \Sigma_{\text{post}} \\).
     """
 
-
     # Ensure all matrices have the same ordering
     # before converting them to numpy arrays
     ids = mu_prior.index
@@ -146,11 +139,11 @@ def bl_posterior_mu_sigma(
     Psi_inv = np.linalg.inv(Psi)
     Omega_inv = np.linalg.inv(Omega)
     V = P.T @ Omega_inv @ P + Psi_inv
-    V_inv = np.linalg.inv(V)  # //Beware: this reflects uncertainty in the mean estimates, not the variability of returns.
+    V_inv = np.linalg.inv(
+        V
+    )  # //Beware: this reflects uncertainty in the mean estimates, not the variability of returns.
 
-    mu_posterior = V_inv @ (
-        P.T @ Omega_inv @ q + Psi_inv @ mu_prior
-    )
+    mu_posterior = V_inv @ (P.T @ Omega_inv @ q + Psi_inv @ mu_prior)
     sigma_posterior = covmat + pd.DataFrame(V_inv, index=ids, columns=ids)
     # ~~~~~~~~~~~~~~~~~~~~
 
@@ -246,10 +239,8 @@ def view_from_scores_absolute(
 
     # Create the pick matrix
     P = pd.DataFrame(
-        np.zeros((len(scores_clean), len(scores))),
-        index=scores_clean.index,
-        columns=scores.index
-    )    
+        np.zeros((len(scores_clean), len(scores))), index=scores_clean.index, columns=scores.index
+    )
     # Set values to 1 for the scores that are not NaN
     for idx in scores_clean.index:
         P.loc[idx, idx] = 1
@@ -261,10 +252,13 @@ def view_from_scores_absolute(
 
         # Align the implied returns with the rank of the scores
         sorted_mu = mu_implied.sort_values(ascending=False)
-        q = pd.Series(
-            sorted_mu.iloc[scores_rank-1].values,  # Align ranks with sorted returns
-            index=mu_implied.index
-        ) * scalefactor
+        q = (
+            pd.Series(
+                sorted_mu.iloc[scores_rank - 1].values,  # Align ranks with sorted returns
+                index=mu_implied.index,
+            )
+            * scalefactor
+        )
 
     else:
         # Compute the average mu_implied for each quantile
@@ -272,11 +266,11 @@ def view_from_scores_absolute(
         mu = pd.Series(index=scores_clean.sort_values().index, dtype=float)
         for i in range(len(thresholds)):
             if i == 0:
-                idx = mu_implied <= thresholds[i+1]
+                idx = mu_implied <= thresholds[i + 1]
             elif i == len(thresholds) - 1:
-                idx = mu_implied >= thresholds[i-1]
+                idx = mu_implied >= thresholds[i - 1]
             else:
-                idx = (mu_implied >= thresholds[i-1]) & (mu_implied <= thresholds[i+1])
+                idx = (mu_implied >= thresholds[i - 1]) & (mu_implied <= thresholds[i + 1])
             mu.iloc[i] = mu_implied[idx].mean()
 
         q = mu[scores_clean.index] * scalefactor
@@ -287,7 +281,7 @@ def view_from_scores_absolute(
 def generate_views_from_scores(
     scores: pd.Series,
     mu_implied: pd.Series,
-    method: str = 'quintile',
+    method: str = "quintile",
     scalefactor: int = 1,
 ) -> (pd.DataFrame, pd.Series):
     """
@@ -312,10 +306,9 @@ def generate_views_from_scores(
     q: pd.Series
         The expected returns for the views.
     """
-    if method == 'quintile':
+    if method == "quintile":
         return view_from_scores_quintile(scores, mu_implied, scalefactor)
-    elif method == 'absolute':
+    elif method == "absolute":
         return view_from_scores_absolute(scores, mu_implied, scalefactor)
     else:
         raise ValueError("Invalid method. Use 'quintile' or 'absolute'.")
-

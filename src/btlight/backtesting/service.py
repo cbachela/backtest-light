@@ -9,7 +9,6 @@
 # --------------------------------------------------------------------------
 
 
-
 # Standard library imports
 from typing import Optional
 
@@ -33,9 +32,7 @@ from btlight.backtesting.item_builder_classes import (
 )
 
 
-
-
-class BacktestService():
+class BacktestService:
     """
     A class to manage the backtesting process of a trading strategy.
 
@@ -60,17 +57,20 @@ class BacktestService():
 
     build_selection(rebdate: str) -> None
         Builds the selection for a given rebalancing date.
-    
+
     build_optimization(rebdate: str) -> None
         Builds the optimization for a given rebalancing date.
     """
-    def __init__(self,
-                 data: 'BacktestData',
-                 optimization_item_builders: dict[str, OptimizationItemBuilder],
-                 selection_item_builders: Optional[dict[str, SelectionItemBuilder]] = None,
-                 optimization: Optional[Optimization] = None,
-                 settings: Optional[dict] = None,
-                 **kwargs) -> None:
+
+    def __init__(
+        self,
+        data: "BacktestData",
+        optimization_item_builders: dict[str, OptimizationItemBuilder],
+        selection_item_builders: Optional[dict[str, SelectionItemBuilder]] = None,
+        optimization: Optional[Optimization] = None,
+        settings: Optional[dict] = None,
+        **kwargs,
+    ) -> None:
         self.data = data
         self.optimization_item_builders = optimization_item_builders
         self.selection_item_builders = (
@@ -151,8 +151,10 @@ class BacktestService():
             raise TypeError("Expected a dictionary for 'settings'")
         self._settings = value
 
-    def prepare_rebalancing(self, rebalancing_date: str, strategy: Optional[Strategy] = None) -> None:
-        self.build_selection(rebdate = rebalancing_date)
+    def prepare_rebalancing(
+        self, rebalancing_date: str, strategy: Optional[Strategy] = None
+    ) -> None:
+        self.build_selection(rebdate=rebalancing_date)
         self.build_optimization(rebdate=rebalancing_date, strategy=strategy)
         return None
 
@@ -160,7 +162,7 @@ class BacktestService():
         # Loop over the selection_item_builders (unless the dictionary is empty)
         if self.selection_item_builders:
             for key, item_builder in self.selection_item_builders.items():
-                item_builder.arguments['item_name'] = key
+                item_builder.arguments["item_name"] = key
                 item_builder(self, rebdate)
         return None
 
@@ -171,24 +173,20 @@ class BacktestService():
         if strategy is None:
             strategy = Strategy([])
 
-
         # Get the previous portfolio and the current selection
         previous_portfolio = strategy.get_previous_portfolio(rebalancing_date=rebdate)
         current_selection = self.selection.selected
 
-        # Cut out return series of the ids in the union of 
+        # Cut out return series of the ids in the union of
         # the current selection and the previous portfolio
-        if hasattr(self.data, 'get_return_series'):
+        if hasattr(self.data, "get_return_series"):
             return_series = self.data.get_return_series(
-                    ids=list(
-                        set(current_selection)
-                        .union(set(previous_portfolio.weights.keys()))
-                    ),
-                    end_date=rebdate,
-                    fillna_value=0,
-                )
+                ids=list(set(current_selection).union(set(previous_portfolio.weights.keys()))),
+                end_date=rebdate,
+                fillna_value=0,
+            )
         else:
-            return_series = self.data['return_series']
+            return_series = self.data["return_series"]
 
         # Float the weights of the previous portfolio with the market returns
         # until the new rebalancing date
@@ -200,18 +198,17 @@ class BacktestService():
         )
 
         # Add the initial weights to the optimization specifications
-        self.optimization.params['x_init'] = x_init
+        self.optimization.params["x_init"] = x_init
 
         # Add the floated initial weights to the selection object
         self.selection.add_filtered(
-            filter_name='initial_weights',
-            value=pd.Series(x_init, name='floated values')
+            filter_name="initial_weights", value=pd.Series(x_init, name="floated values")
         )
 
         # Initialize the optimization constraints
         # unless the selection is empty because no selection_item_builder was called
         if self.selection_item_builders:
-            self.optimization.constraints = Constraints(ids = self.selection.selected)
+            self.optimization.constraints = Constraints(ids=self.selection.selected)
 
         # Loop over the optimization_item_builders
         for item_builder in self.optimization_item_builders.values():

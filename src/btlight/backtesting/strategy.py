@@ -9,7 +9,6 @@
 # --------------------------------------------------------------------------
 
 
-
 # Standard library imports
 from typing import Union
 
@@ -19,8 +18,6 @@ import pandas as pd
 
 # Local modules imports
 from btlight.backtesting.portfolio import Portfolio, floating_weights
-
-
 
 
 class Strategy:
@@ -37,28 +34,29 @@ class Strategy:
     -------
     get_rebalancing_dates() -> list[str]
         Returns a list of rebalancing dates for the portfolios in the strategy.
-    
+
     get_weights(rebalancing_date: str) -> dict[str, float]
         Returns the weights of the portfolio for a given rebalancing date.
-    
+
     get_weights_df() -> pd.DataFrame
         Returns a DataFrame of portfolio weights with rebalancing dates as the index.
-    
+
     get_portfolio(rebalancing_date: str) -> Portfolio
         Returns the portfolio for a given rebalancing date.
-    
+
     has_previous_portfolio(rebalancing_date: str) -> bool
         Checks if there is a portfolio before the given rebalancing date.
-    
+
     get_previous_portfolio(rebalancing_date: str) -> Portfolio
         Returns the portfolio immediately before the given rebalancing date.
-    
+
     turnover(return_series: pd.DataFrame, rescale: bool = True) -> pd.Series
         Calculates the turnover for each rebalancing date.
-    
+
     simulate(return_series: pd.DataFrame, fc: float = 0, vc: float = 0, n_days_per_year: int = 252) -> pd.Series
         Simulates the strategy's performance over time, accounting for fixed and variable costs.
     """
+
     def __init__(self, portfolios: list[Portfolio]):
         self.portfolios = portfolios
 
@@ -69,9 +67,9 @@ class Strategy:
     @portfolios.setter
     def portfolios(self, new_portfolios: list[Portfolio]):
         if not isinstance(new_portfolios, list):
-            raise TypeError('portfolios must be a list')
+            raise TypeError("portfolios must be a list")
         if not all(isinstance(portfolio, Portfolio) for portfolio in new_portfolios):
-            raise TypeError('all elements in portfolios must be of type Portfolio')
+            raise TypeError("all elements in portfolios must be of type Portfolio")
         self._portfolios = new_portfolios
 
     def get_rebalancing_dates(self):
@@ -94,7 +92,7 @@ class Strategy:
             idx = self.get_rebalancing_dates().index(rebalancing_date)
             return self.portfolios[idx]
         else:
-            raise ValueError(f'No portfolio found for rebalancing date {rebalancing_date}')
+            raise ValueError(f"No portfolio found for rebalancing date {rebalancing_date}")
 
     def has_previous_portfolio(self, rebalancing_date: str) -> bool:
         dates = self.get_rebalancing_dates()
@@ -110,7 +108,7 @@ class Strategy:
             yesterday = [x for x in self.get_rebalancing_dates() if x < rebalancing_date][-1]
             return self.get_portfolio(yesterday)
 
-    def turnover(self, return_series: pd.DataFrame, rescale: bool=True):
+    def turnover(self, return_series: pd.DataFrame, rescale: bool = True):
 
         dates = self.get_rebalancing_dates()
         to = {}
@@ -120,18 +118,18 @@ class Strategy:
             previous_portfolio = self.get_previous_portfolio(rebalancing_date=rebalancing_date)
             current_portfolio = self.get_portfolio(rebalancing_date=rebalancing_date)
 
-            if current_portfolio.rebalancing_date is None or previous_portfolio.rebalancing_date is None:
-                raise ValueError('Portfolios must have a rebalancing date')
+            if (
+                current_portfolio.rebalancing_date is None
+                or previous_portfolio.rebalancing_date is None
+            ):
+                raise ValueError("Portfolios must have a rebalancing date")
 
             if current_portfolio.rebalancing_date < previous_portfolio.rebalancing_date:
-                raise ValueError('The previous portfolio must be older than the current portfolio')
+                raise ValueError("The previous portfolio must be older than the current portfolio")
 
             # Get the union of the ids of the weights in both portfolios
             ids_union = list(
-                set(
-                    current_portfolio.weights.keys())
-                    .union(set(previous_portfolio.weights.keys())
-                )
+                set(current_portfolio.weights.keys()).union(set(previous_portfolio.weights.keys()))
             )
 
             # Extend the weights of the portfolio of the previous rebalancing
@@ -145,7 +143,7 @@ class Strategy:
                 w=w0,
                 start_date=previous_portfolio.rebalancing_date,
                 end_date=current_portfolio.rebalancing_date,
-                rescale=rescale
+                rescale=rescale,
             )
 
             # Extract the weights of the portfolio of the current rebalancing date
@@ -153,17 +151,13 @@ class Strategy:
 
             # Calculate the turnover
             to[rebalancing_date] = (
-                pd.Series(w_init.iloc[-1])
-                .sub(pd.Series(w_current), fill_value=0)
-                .abs().sum()
+                pd.Series(w_init.iloc[-1]).sub(pd.Series(w_current), fill_value=0).abs().sum()
             )
         return pd.Series(to)
 
-    def simulate(self,
-                 return_series: pd.DataFrame,
-                 fc: float = 0,
-                 vc: float = 0,
-                 n_days_per_year: int = 252) -> pd.Series:
+    def simulate(
+        self, return_series: pd.DataFrame, fc: float = 0, vc: float = 0, n_days_per_year: int = 252
+    ) -> pd.Series:
 
         rebdates = self.get_rebalancing_dates()
         ret_list = []
@@ -178,7 +172,7 @@ class Strategy:
             w_float = portfolio.float_weights(
                 return_series=return_series,
                 end_date=next_rebdate,
-                rescale=False # Notice that rescale is hardcoded to False.
+                rescale=False,  # Notice that rescale is hardcoded to False.
             )
             level = w_float.sum(axis=1)
             ret_tmp = level.pct_change(1)
@@ -189,8 +183,7 @@ class Strategy:
         if vc != 0:
             # Calculate turnover and variable cost (vc) as a fraction of turnover
             # Subtract the variable cost from the returns at each rebalancing date
-            to = self.turnover(return_series=return_series,
-                               rescale=False)
+            to = self.turnover(return_series=return_series, rescale=False)
             varcost = to * vc
             portf_ret[0] -= varcost[0]
             portf_ret[varcost[1:].index] -= varcost[1:].values
@@ -200,7 +193,12 @@ class Strategy:
             # Calculate daily fixed cost based on the annual fixed cost (fc),
             # the number of days between two rebalancings and the number of days per year.
             # Subtract the daily fixed cost from the daily returns
-            n_days = (portf_ret.index[1:] - portf_ret.index[:-1]).to_numpy().astype('timedelta64[D]').astype(int)
+            n_days = (
+                (portf_ret.index[1:] - portf_ret.index[:-1])
+                .to_numpy()
+                .astype("timedelta64[D]")
+                .astype(int)
+            )
             fixcost = (1 + fc) ** (n_days / n_days_per_year) - 1
             portf_ret[1:] -= fixcost
 
