@@ -1,0 +1,1 @@
+put data in this folder locally and don't commit. If you use other data types than csv and .parquet update .gitignore.
