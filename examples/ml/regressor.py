@@ -182,7 +182,7 @@ time_grid = X.index.get_level_values("DATE").unique().sort_values()
 # Train and Test Rolling Split
 ####################################################
 from backtest.
-from qa.ml.rolling_timeseries_split import ObservationGridRollingSplit
+from btlight.ml.rolling_timeseries_split import ObservationGridRollingSplit
 
 rolling_splitter = ObservationGridRollingSplit(
     observation_dates=time_grid,
@@ -237,7 +237,7 @@ for i, (train_idx, test_idx) in enumerate(rolling_splitter.split(X=X), start=1):
 ####################################################
 # Train (will persist the models to disk)
 ####################################################
-from qa.ml.traintest import train_func
+from btlight.ml.traintest import train_func
 from sklearn.base import clone
 import joblib
 
@@ -273,7 +273,7 @@ print("Done")
 # Test (will load the models from disk and generate predictions)
 ####################################################
 import joblib
-from qa.ml.traintest import test_func
+from btlight.ml.traintest import test_func
 
 # run the test, which is simply generating the predictions
 # here also in parallel
