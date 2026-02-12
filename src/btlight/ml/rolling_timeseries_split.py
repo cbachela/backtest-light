@@ -1,5 +1,5 @@
 from typing import Iterator, Tuple, Union
-
+import numpy as np
 import pandas as pd
 from pandas.tseries.offsets import DateOffset
 from sklearn.model_selection import BaseCrossValidator
@@ -283,7 +283,7 @@ class ObservationGridRollingSplit(BaseCrossValidator):
 
     def __init__(
         self,
-        observation_dates: pd.DatetimeIndex | None = None,
+        observation_dates: Union[pd.DatetimeIndex, None] = None,
         train_window_obs: int = 36,
         skip_obs_between_train_test: int = 1,
         retrain_stride: int = 1,
@@ -315,11 +315,7 @@ class ObservationGridRollingSplit(BaseCrossValidator):
         data = X if X is not None else y
         assert data is not None, "Either X or y must be provided"
 
-        obs_dates = (
-            self.observation_dates
-            if self.observation_dates is not None
-            else self._infer_observation_dates_from_data(data)
-        )
+        obs_dates = self.observation_dates if self.observation_dates is not None else self._infer_observation_dates_from_data(data)
 
         for train_start, train_end, test_start, test_end in iter_rolling_dates_from_grid(
             obs_dates,
@@ -350,3 +346,36 @@ class ObservationGridRollingSplit(BaseCrossValidator):
         for _ in self.split(X=X, y=y, groups=groups):
             n += 1
         return n
+
+
+class PanelTimeSeriesSplit(BaseCrossValidator):
+    def __init__(self, n_splits=3, date_level="DATE"):
+        self.n_splits = n_splits
+        self.date_level = date_level
+
+    def split(self, X, y=None, groups=None):
+        dates = (
+            X.index.get_level_values(self.date_level)
+            .unique()
+            .sort_values()
+        )
+
+        fold_size = len(dates) // (self.n_splits + 1)
+
+        for i in range(self.n_splits):
+            train_end = fold_size * (i + 1)
+            val_end = fold_size * (i + 2)
+
+            train_dates = dates[:train_end]
+            val_dates = dates[train_end:val_end]
+
+            train_mask = X.index.get_level_values(self.date_level).isin(train_dates)
+            val_mask = X.index.get_level_values(self.date_level).isin(val_dates)
+
+            train_idx = np.where(train_mask)[0]
+            val_idx = np.where(val_mask)[0]
+
+            yield train_idx, val_idx
+
+    def get_n_splits(self, X=None, y=None, groups=None):
+        return self.n_splits
