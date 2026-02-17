@@ -10,7 +10,7 @@ The backtesting light (**btlight**) package is a lightweight library for equity 
     ```
 - **Windows (PowerShell)**
     ```powershell
-    iwr https://astral.sh/uv/install.ps1 -useb | iex
+    powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex
     ```
 
 ### 2) Create a venv
