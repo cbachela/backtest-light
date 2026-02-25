@@ -1,0 +1,62 @@
+[project]
+name = "btlight"
+version = "0.1.0"
+description = "Light Weight Experimental Backtest Package."
+requires-python = ">=3.9"
+dependencies = [
+    "black>=25.11.0",
+    "cvxpy>=1.7.5",
+    "deptry>=0.23.1",
+    "empyrical-reloaded>=0.5.12",
+    "flake8>=7.3.0",
+    "import-linter>=2.5.2",
+    "ipykernel>=6.31.0",
+    "jupyter>=1.1.1",
+    "matplotlib>=3.9.4",
+    "numpy>=2.0.2",
+    "pandas>=2.3.3",
+    "pyarrow>=21.0.0",
+    "pylint>=3.3.9",
+    "pytest>=8.4.2",
+    "pytz>=2025.2",
+    "pyyaml>=6.0.3",
+    "qpsolvers[cvxopt]>=4.8.2",
+    "quantstats>=0.0.77",
+    "scikit-learn>=1.6.1",
+    "shap>=0.49.1",
+    "tqdm>=4.67.1",
+    "xgboost>=2.1.4",
+]
+
+[build-system]
+requires = ["setuptools>=61.0","wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+exclude = '\.venv/|build/|dist/|\.git/'
+
+
+
+[tool.deptry]
+ignore = ["DEP002"]
+
+# this avoids the problem of backtest_light being
+# a transitive dependency
+known_first_party = ["btlight"]
+
+# package_module_name_map avoids deptry's "assuming the corresponding 
+# module name" messages for tools like black and pytest.
+package_module_name_map = { black = "black", pytest = "pytest" }
+
+# overkill - but for those that
+# run VSCODE with flake8
+[tool.flake8]
+max-line-length = 100
