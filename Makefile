@@ -3,6 +3,9 @@ PYTHON := python
 install:
 	uv sync
 
+install-editable:
+	uv pip install -e .
+
 format:
 	black --line-length 100 src/ tests/
 

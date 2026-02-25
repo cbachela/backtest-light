@@ -244,6 +244,7 @@ def iter_rolling_dates_from_grid(
         return
 
     test_start_positions = list(range(first_test_idx, n, retrain_stride))
+    
 
     for idx_pos, test_start_pos in enumerate(test_start_positions):
         test_start = dates[test_start_pos]
@@ -315,7 +316,11 @@ class ObservationGridRollingSplit(BaseCrossValidator):
         data = X if X is not None else y
         assert data is not None, "Either X or y must be provided"
 
-        obs_dates = self.observation_dates if self.observation_dates is not None else self._infer_observation_dates_from_data(data)
+        obs_dates = (
+            self.observation_dates
+            if self.observation_dates is not None
+            else self._infer_observation_dates_from_data(data)
+        )
 
         for train_start, train_end, test_start, test_end in iter_rolling_dates_from_grid(
             obs_dates,
@@ -341,6 +346,85 @@ class ObservationGridRollingSplit(BaseCrossValidator):
 
             yield train_idx, test_idx
 
+    # ---- Convenience helpers for human-readable inspection ----
+    def _extract_date_level(self, idx):
+        """Return a DatetimeIndex representing the date level for `idx`.
+
+        Handles MultiIndex with a `DATE` level, MultiIndex with first level as date,
+        or a plain DatetimeIndex.
+        """
+        if isinstance(idx, pd.MultiIndex):
+            # prefer named level `DATE` when present
+            if "DATE" in idx.names:
+                dates = pd.DatetimeIndex(idx.get_level_values("DATE"))
+            else:
+                dates = pd.DatetimeIndex(idx.get_level_values(0))
+        else:
+            dates = pd.DatetimeIndex(idx)
+        return dates
+
+    def split_info(self, train_idx, test_idx):
+        """Return a dict with human-readable info about a single split.
+
+        Keys: `train_start`, `train_end`, `train_n`, `train_unique_dates`, `train_dates`,
+              `test_start`, `test_end`, `test_n`, `test_unique_dates`, `test_dates`.
+        """
+        t_dates = self._extract_date_level(train_idx)
+        v_dates = self._extract_date_level(test_idx)
+
+        train_dates = t_dates.unique().sort_values()
+        test_dates = v_dates.unique().sort_values()
+
+        info = {
+            "train_start": pd.Timestamp(train_dates.min()),
+            "train_end": pd.Timestamp(train_dates.max()),
+            "train_n": len(train_idx),
+            "train_unique_dates": len(train_dates),
+            "train_dates": train_dates.strftime("%Y-%m-%d").tolist(),
+            "test_start": pd.Timestamp(test_dates.min()),
+            "test_end": pd.Timestamp(test_dates.max()),
+            "test_n": len(test_idx),
+            "test_unique_dates": len(test_dates),
+            "test_dates": test_dates.strftime("%Y-%m-%d").tolist(),
+        }
+        return info
+
+    def print_splits(self, X, limit=None):
+        """Iterate the splits and print human-friendly information.
+
+        Parameters
+        - X: DataFrame or Series used to drive the split (passed to `split`).
+        - limit: Optional[int] maximum number of splits to print.
+        """
+        for i, (train_idx, test_idx) in enumerate(self.split(X=X), start=1):
+            if limit is not None and i > limit:
+                break
+
+            info = self.split_info(train_idx, test_idx)
+
+            print(f"\n{'=' * 12} [iteration {i:02d}] {'=' * 12}")
+            print("training_period")
+            print(
+                "start <-> end:",
+                info["train_start"].strftime("%Y-%m-%d"),
+                "<->",
+                info["train_end"].strftime("%Y-%m-%d"),
+            )
+            print("number of samples:", info["train_n"])
+            print("number of unique dates:", info["train_unique_dates"])
+            print("dates:", info["train_dates"])
+
+            print("testing_period")
+            print(
+                "start <-> end:",
+                info["test_start"].strftime("%Y-%m-%d"),
+                "<->",
+                info["test_end"].strftime("%Y-%m-%d"),
+            )
+            print("number of samples:", info["test_n"])
+            print("number of unique dates:", info["test_unique_dates"])
+            print("dates:", info["test_dates"])
+
     def get_n_splits(self, X, y=None, groups=None):
         n = 0
         for _ in self.split(X=X, y=y, groups=groups):
@@ -360,11 +444,19 @@ class PanelTimeSeriesSplit(BaseCrossValidator):
             .sort_values()
         )
 
-        fold_size = len(dates) // (self.n_splits + 1)
+        n_dates = len(dates)
+
+        # Create split points evenly spaced over dates
+        split_points = np.linspace(
+            0,
+            n_dates,
+            self.n_splits + 2,   # +2 gives us train/val structure
+            dtype=int
+        )
 
         for i in range(self.n_splits):
-            train_end = fold_size * (i + 1)
-            val_end = fold_size * (i + 2)
+            train_end = split_points[i + 1]
+            val_end = split_points[i + 2]
 
             train_dates = dates[:train_end]
             val_dates = dates[train_end:val_end]
@@ -372,10 +464,36 @@ class PanelTimeSeriesSplit(BaseCrossValidator):
             train_mask = X.index.get_level_values(self.date_level).isin(train_dates)
             val_mask = X.index.get_level_values(self.date_level).isin(val_dates)
 
-            train_idx = np.where(train_mask)[0]
-            val_idx = np.where(val_mask)[0]
-
-            yield train_idx, val_idx
+            yield np.where(train_mask)[0], np.where(val_mask)[0]
 
     def get_n_splits(self, X=None, y=None, groups=None):
         return self.n_splits
+
+# # old version misses last 2 quarters fo rexample
+# class PanelTimeSeriesSplit(BaseCrossValidator):
+#     def __init__(self, n_splits=3, date_level="DATE"):
+#         self.n_splits = n_splits
+#         self.date_level = date_level
+
+#     def split(self, X, y=None, groups=None):
+#         dates = X.index.get_level_values(self.date_level).unique().sort_values()
+
+#         fold_size = len(dates) // (self.n_splits + 1)
+
+#         for i in range(self.n_splits):
+#             train_end = fold_size * (i + 1)
+#             val_end = fold_size * (i + 2)
+
+#             train_dates = dates[:train_end]
+#             val_dates = dates[train_end:val_end]
+
+#             train_mask = X.index.get_level_values(self.date_level).isin(train_dates)
+#             val_mask = X.index.get_level_values(self.date_level).isin(val_dates)
+
+#             train_idx = np.where(train_mask)[0]
+#             val_idx = np.where(val_mask)[0]
+
+#             yield train_idx, val_idx
+
+#     def get_n_splits(self, X=None, y=None, groups=None):
+#         return self.n_splits
