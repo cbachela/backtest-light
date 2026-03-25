@@ -115,6 +115,7 @@ else:
     logger.info(f"Preparing features from raw data in {data_path}")
 
     feature_cols = [
+        "ret_6_1",
         "ret_12_1", 
         "qmj", 
         "qmj_growth", 

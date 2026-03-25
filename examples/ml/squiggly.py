@@ -5,25 +5,24 @@ from sklearn.preprocessing import PolynomialFeatures
 from sklearn.pipeline import make_pipeline
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.neural_network import MLPRegressor
+from sklearn.ensemble import RandomForestRegressor
 
-# --- 1. Generate data ---
+# --- 1. Generate enriched data ---
 np.random.seed(0)
 n = 30
 t = np.linspace(0, 5, n)
-g = 9.81
-x_true = 0.5 * g * t**2
-noise = np.random.normal(0, 3.1, size=n)
-x = x_true + noise*np.sqrt(t).flatten()
-
 t = t.reshape(-1, 1)
 
+g = 9.81
+beta = 5.0  # amplitude of wiggle
+x_true = 0.5 * g * t.flatten()**2 + beta * np.sin(3 * t.flatten())  # quadratic + sine
+noise = np.random.normal(0, 2.0, size=n)  # moderate noise
+x = x_true + noise  # final observed positions
 
-
-# split
+# train/validation split
 t_train, t_val, x_train, x_val = train_test_split(t, x, test_size=0.4, random_state=42)
 
-# helper plot
-# helper plot
+# --- Helper plot functions ---
 def plot_model(model, title):
     t_plot = np.linspace(0, 5, 200).reshape(-1, 1)
     x_pred = model.predict(t_plot)
@@ -31,8 +30,7 @@ def plot_model(model, title):
     plt.scatter(t_train, x_train, label="train")
     plt.scatter(t_val, x_val, label="val")
     plt.plot(t_plot, x_pred, color="black")
-    
-    # Vertical distances for validation points
+    # vertical lines to show errors
     x_pred_val = model.predict(t_val)
     plt.vlines(t_val, x_val, x_pred_val, colors="red", alpha=0.5, linestyles="dashed")
     
@@ -41,56 +39,21 @@ def plot_model(model, title):
     plt.title(title)
     plt.legend()
     plt.show()
-
-def plot_model_train(model, title):
-    t_plot = np.linspace(0, 5, 200).reshape(-1, 1)
-    x_pred = model.predict(t_plot)
-    x_pred_train = model.predict(t_train)
-    
-    plt.scatter(t_train, x_train, label="train")
-    plt.plot(t_plot, x_pred, color="black")
-    # Vertical distances
-    plt.vlines(t_train, x_train, x_pred_train, colors="red", alpha=0.5, linestyles="dashed")
-    plt.xlabel("Time (s)")
-    plt.ylabel("Position (m)")
-    plt.title(title)
-    plt.legend()
-    plt.show()
-
-def plot_model_val(model, title):
-    t_plot = np.linspace(0, 5, 200).reshape(-1, 1)
-    x_pred = model.predict(t_plot)
-    x_pred_val = model.predict(t_val)
-    
-    plt.scatter(t_val, x_val, label="val", color="orange")
-    plt.plot(t_plot, x_pred, color="black")
-    # Vertical distances
-    plt.vlines(t_val, x_val, x_pred_val, colors="red", alpha=0.5, linestyles="dashed")
-    plt.xlabel("Time (s)")
-    plt.ylabel("Position (m)")
-    plt.title(title)
-    plt.legend()
-    plt.show()
-
-
 
 # --- 2. Linear model (underfits) ---
 lin = LinearRegression()
 lin.fit(t_train, x_train)
 plot_model(lin, "1. Linear model (underfits)")
-#plot_model_train(lin, "1. Linear model (underfits)")
-#plot_model_val(lin, "1. Linear model (underfits)")
 
-
-# --- 3. Feature engineering (correct model) ---
+# --- 3. Feature engineering (quadratic) ---
 quad = make_pipeline(
     PolynomialFeatures(degree=2, include_bias=False),
     LinearRegression()
 )
 quad.fit(t_train, x_train)
-plot_model(quad, "2. Add t^2 feature (works)")
+plot_model(quad, "2. Quadratic features (works for basic trend)")
 
-# --- 4. Neural net (overfits) ---
+# --- 4. Neural net (overfits small data) ---
 nn_overfit = MLPRegressor(
     hidden_layer_sizes=(100, 100),
     activation="relu",
@@ -99,35 +62,18 @@ nn_overfit = MLPRegressor(
     max_iter=5000,
     random_state=0
 )
-
 nn_overfit.fit(t_train, x_train)
 plot_model(nn_overfit, "3. Neural Net (overfits small data)")
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# --- Optional: Random Forest (extreme overfit demo) ---
+rf_overfit = RandomForestRegressor(
+    n_estimators=200,
+    max_depth=None,
+    min_samples_leaf=1,
+    random_state=0
+)
+rf_overfit.fit(t_train, x_train)
+plot_model(rf_overfit, "3b. Random Forest (extreme overfit)")
 
 # --- 5. Neural net + regularization (CV) ---
 param_grid_nn = {
@@ -142,7 +88,6 @@ grid_nn = GridSearchCV(
     cv=5,
     return_train_score=True
 )
-
 grid_nn.fit(t_train, x_train)
 
 best_nn = grid_nn.best_estimator_
