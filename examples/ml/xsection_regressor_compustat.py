@@ -329,10 +329,9 @@ ic_score = make_scorer(ic_score_func, greater_is_better=True)
 
 
 #pipline 1
-# pipline 1
 # pipeline = Pipeline(
 #     [
-#         ("pca", PCA(n_components=0.95)),
+#         #("pca", PCA(n_components=0.95)),
 #         (
 #             "regressor",
 #             XGBRegressor(
@@ -368,7 +367,7 @@ pipeline = Pipeline(
 )
 
 param_grid = {
-    "regressor__alpha": [1e-4, 1e-2, 0.1, 1.0, 10.0, 100.]
+    "regressor__alpha": [1e-2, 0.1, 1.0, 10.0, 100.]
 }
 
 
@@ -391,6 +390,9 @@ grid_search = GridSearchCV(
 # this can only be done if X and y are aligned
 time_grid = X.index.get_level_values("DATE").unique().sort_values()
 
+# to reduce the sample size for testing purposes, we can filter the time grid to start from a later date
+time_grid = time_grid[time_grid > "2010-01-01"]
+
 
 ####################################################
 # Train and Test Rolling Split
@@ -401,7 +403,7 @@ rolling_splitter = ObservationGridRollingSplit(
     observation_dates=time_grid,
     train_window_obs=12,
     skip_obs_between_train_test=0,
-    retrain_stride=1,
+    retrain_stride=3,
 )
 
 rolling_splitter.print_splits(X=X)
@@ -464,10 +466,10 @@ if study:
     # simple Hyperparam plot for Ridge Regression
     import matplotlib.pyplot as plt
     plt.figure(figsize=(8,5))
-    plt.semilogx(df[param_name], df['mean_test_mse'], marker='o', linestyle='-')
+    plt.semilogx(df[param_name], df['mean_test_score'], marker='o', linestyle='-')
     plt.xlabel("Alpha (log scale)")
-    plt.ylabel("Mean CV MSE")
-    plt.title("Ridge: CV Loss vs Alpha")
+    plt.ylabel("Mean CV Score")
+    plt.title("Ridge: CV Score vs Alpha")
     plt.grid(True, which="both", linestyle="--", linewidth=0.5)
     plt.show()
     
@@ -475,17 +477,17 @@ if study:
     plt.figure(figsize=(8,5))
     
     # Semilog-x plot with shaded std region
-    plt.semilogx(df[param_name], df['mean_test_mse'], marker='o', linestyle='-', label='Mean CV MSE')
+    plt.semilogx(df[param_name], df['mean_test_score'], marker='o', linestyle='-', label='Mean CV MSE')
     plt.fill_between(
         df[param_name],
-        df['mean_test_mse'] - df['std_test_score'],
-        df['mean_test_mse'] + df['std_test_score'],
+        df['mean_test_score'] - df['std_test_score'],
+        df['mean_test_score'] + df['std_test_score'],
         alpha=0.2
     )
     
     plt.xlabel("Alpha (log scale)")
-    plt.ylabel("Mean CV MSE")
-    plt.title("Ridge: CV Loss vs Alpha")
+    plt.ylabel("Mean CV Score")
+    plt.title("Ridge: CV Score vs Alpha")
     plt.grid(True, which="both", linestyle="--", linewidth=0.5)
     plt.show()
 
@@ -578,6 +580,31 @@ print("Predictions Done")
 logger.info(f"Predictions written to {prediction_path}")
 
 
+####################################################
+# Metric Analysis (IC Score)
+####################################################
+
+y_hat = y_pred_test_df.stack()
+
+ic_train = []
+ic_test = []
+for item in result:
+    _, y_hat_test, y_hat_train = item
+
+    ic_test.append(ic_score_func(y.reindex(y_hat_test.index), y_hat_test.values.reshape(-1)))
+    ic_train.append(ic_score_func(y.reindex(y_hat_train.index), y_hat_train.values.reshape(-1)))
+
+import matplotlib.pyplot as plt
+plt.plot(ic_test)
+plt.plot(ic_train)
+plt.show()
+
+y.reindex(y_hat.index), y_hat
+ic_score_func(y.reindex(y_hat.index), y_hat.values.reshape(-1))
+pd.Series(y_hat.values.reshape(-1))
+
+def ic_score_func(y_true, y_pred):
+    return cross_sectional_ic(y_true, pd.Series(y_pred, index=y_true.index))
 
 ####################################################
 # Shap Values Computation
