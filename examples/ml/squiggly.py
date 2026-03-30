@@ -15,30 +15,32 @@ t = t.reshape(-1, 1)
 
 g = 9.81
 beta = 5.0  # amplitude of wiggle
-x_true = 0.5 * g * t.flatten()**2 + beta * np.sin(3 * t.flatten())  # quadratic + sine
+x_true = 0.5 * g * t.flatten() ** 2 + beta * np.sin(3 * t.flatten())  # quadratic + sine
 noise = np.random.normal(0, 2.0, size=n)  # moderate noise
 x = x_true + noise  # final observed positions
 
 # train/validation split
 t_train, t_val, x_train, x_val = train_test_split(t, x, test_size=0.4, random_state=42)
 
+
 # --- Helper plot functions ---
 def plot_model(model, title):
     t_plot = np.linspace(0, 5, 200).reshape(-1, 1)
     x_pred = model.predict(t_plot)
-    
+
     plt.scatter(t_train, x_train, label="train")
     plt.scatter(t_val, x_val, label="val")
     plt.plot(t_plot, x_pred, color="black")
     # vertical lines to show errors
     x_pred_val = model.predict(t_val)
     plt.vlines(t_val, x_val, x_pred_val, colors="red", alpha=0.5, linestyles="dashed")
-    
+
     plt.xlabel("Time (s)")
     plt.ylabel("Position (m)")
     plt.title(title)
     plt.legend()
     plt.show()
+
 
 # --- 2. Linear model (underfits) ---
 lin = LinearRegression()
@@ -46,10 +48,7 @@ lin.fit(t_train, x_train)
 plot_model(lin, "1. Linear model (underfits)")
 
 # --- 3. Feature engineering (quadratic) ---
-quad = make_pipeline(
-    PolynomialFeatures(degree=2, include_bias=False),
-    LinearRegression()
-)
+quad = make_pipeline(PolynomialFeatures(degree=2, include_bias=False), LinearRegression())
 quad.fit(t_train, x_train)
 plot_model(quad, "2. Quadratic features (works for basic trend)")
 
@@ -60,17 +59,14 @@ nn_overfit = MLPRegressor(
     alpha=0.0,
     solver="lbfgs",
     max_iter=5000,
-    random_state=0
+    random_state=0,
 )
 nn_overfit.fit(t_train, x_train)
 plot_model(nn_overfit, "3. Neural Net (overfits small data)")
 
 # --- Optional: Random Forest (extreme overfit demo) ---
 rf_overfit = RandomForestRegressor(
-    n_estimators=200,
-    max_depth=None,
-    min_samples_leaf=1,
-    random_state=0
+    n_estimators=200, max_depth=None, min_samples_leaf=1, random_state=0
 )
 rf_overfit.fit(t_train, x_train)
 plot_model(rf_overfit, "3b. Random Forest (extreme overfit)")
@@ -78,7 +74,7 @@ plot_model(rf_overfit, "3b. Random Forest (extreme overfit)")
 # --- 5. Neural net + regularization (CV) ---
 param_grid_nn = {
     "hidden_layer_sizes": [(10,), (50,), (100,), (50, 50)],
-    "alpha": np.logspace(-5, 1, 10)
+    "alpha": np.logspace(-5, 1, 10),
 }
 
 grid_nn = GridSearchCV(
@@ -86,7 +82,7 @@ grid_nn = GridSearchCV(
     param_grid_nn,
     scoring="neg_mean_squared_error",
     cv=5,
-    return_train_score=True
+    return_train_score=True,
 )
 grid_nn.fit(t_train, x_train)
 

@@ -18,7 +18,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(message)s",
     datefmt="[%X]",
-    handlers=[RichHandler(console=console, markup=True)]
+    handlers=[RichHandler(console=console, markup=True)],
 )
 logger = logging.getLogger(__name__)
 
@@ -43,22 +43,14 @@ jkp_data = pd.read_parquet(path=data_path / "jkp_data.parquet")
 ################################
 
 # re-using Cyril's function to align and forward fill
-market_data_dates = (
-    market_data
-    .index.get_level_values('date')
-    .unique().sort_values()
-)
-jkp_data_dates = (
-    jkp_data
-    .index.get_level_values('date')
-    .unique().sort_values()
-)
+market_data_dates = market_data.index.get_level_values("date").unique().sort_values()
+jkp_data_dates = jkp_data.index.get_level_values("date").unique().sort_values()
 missing_dates = jkp_data_dates[~jkp_data_dates.isin(market_data_dates)]
 tmp_dict = {}
 for date in missing_dates:
     last_date = market_data_dates[market_data_dates <= date][-1]
     tmp_dict[date] = market_data.loc[last_date]
-    
+
 df_missing = pd.concat(tmp_dict, axis=0)
 df_missing.index.names = market_data.index.names
 market_data_ffill = pd.concat([market_data, df_missing]).sort_index()
@@ -77,7 +69,6 @@ daily_ret.name = "tot_return_gross"
 daily_ret.dropna().to_frame().to_parquet(data_path / "return_series.parquet")
 
 
-
 ################################
 # Paths for generated data
 ################################
@@ -90,9 +81,8 @@ feature_path = str(data_path / "features.parquet")
 label_path = str(data_path / "labels.parquet")
 
 # generated predictions
-prediction_path =str(data_path / "ml_signal.parquet")
+prediction_path = str(data_path / "ml_signal.parquet")
 shap_path = str(data_path / "shap_values.parquet")
-
 
 
 
@@ -116,9 +106,9 @@ else:
 
     feature_cols = [
         "ret_6_1",
-        "ret_12_1", 
-        "qmj", 
-        "qmj_growth", 
+        "ret_12_1",
+        "qmj",
+        "qmj_growth",
         "qmj_safety",
         "gp_at",
         "op_at",
@@ -127,12 +117,12 @@ else:
         "at_gr1",
         "oaccruals_at",
     ]
-    
+
     # load signals
-    #X = pd.read_parquet(signal_path)
+    # X = pd.read_parquet(signal_path)
     X = pd.read_parquet(path=data_path / "jkp_data.parquet")
     X = X[feature_cols]
-    
+
     X.index.names = ["DATE", "ID"]
 
     # keep only numeric columns (for now)
@@ -142,7 +132,7 @@ else:
 
     # forward fill, 1y max
     X = X.groupby(level="ID").ffill(limit=4)
-    
+
     # only for the example, in practice more careful
     X = X.dropna()
 
@@ -154,7 +144,7 @@ else:
     X = X.loc[X.index.get_level_values("DATE") >= start_date_id]
 
     # remove duplicates
-    X = X[~X.index.duplicated(keep='last')]
+    X = X[~X.index.duplicated(keep="last")]
 
     # check if we have the proper panel format
     check_if_multiindex(X)
@@ -188,7 +178,6 @@ else:
 logger.info(f"Features prepared: X.shape={getattr(X, 'shape', None)}")
 
 
-
 ################################
 # Label Creation
 ################################
@@ -216,9 +205,8 @@ else:
     logger.info(f"Preparing labels from raw data in {data_path}")
     # on s3 we still have multi columns
 
-    return_series = pd.read_parquet(return_series_path, columns=['tot_return_gross'])
-    #return_series = pd.read_parquet(return_series_path)
-    
+    return_series = pd.read_parquet(return_series_path, columns=["tot_return_gross"])
+    # return_series = pd.read_parquet(return_series_path)
 
     # check if we have the proper panel format
     check_if_multiindex(return_series)
@@ -239,7 +227,7 @@ else:
     y = shift_grid_returns(grid_ret, shift=-1)
 
     # remove duplicates
-    y = y[~y.index.duplicated(keep='last')]
+    y = y[~y.index.duplicated(keep="last")]
 
     ################################
     # Label Transformation
@@ -255,10 +243,9 @@ else:
     # label transformation pipeline
     label_pipeline = TransformPipeline(
         [
-            #CrossSectionalZScore(),
+            # CrossSectionalZScore(),
             CrossSectionalWinsorize(lower=0.01, upper=0.99),
             CrossSectionalPIT(),
-            
         ]
     )
 
@@ -304,7 +291,6 @@ if not Path(label_path).exists() or label_recompute:
     y.to_frame("return").to_parquet(label_path)
 
 
-
 logger.info(f"Aligned X and y: X.shape={X.shape}, y.shape={y.shape}")
 
 
@@ -313,75 +299,99 @@ logger.info(f"Aligned X and y: X.shape={X.shape}, y.shape={y.shape}")
 ################################
 import numpy as np
 from sklearn.pipeline import Pipeline
-from sklearn.model_selection import GridSearchCV, TimeSeriesSplit, KFold
 from sklearn.linear_model import Ridge
 from sklearn.preprocessing import StandardScaler, PolynomialFeatures
 from sklearn.feature_selection import SelectKBest, f_regression
-from xgboost import XGBRegressor
 from scipy.stats import spearmanr
 from sklearn.metrics import make_scorer
-from btlight.ml.splitters.rolling_timeseries_split import PanelTimeSeriesSplit
 from sklearn.decomposition import PCA
 from btlight.ml.metrics.scoring import ic_score_func
 
 
 ic_score = make_scorer(ic_score_func, greater_is_better=True)
-# make custom scorer
 
-
-#pipline 1
-# pipeline = Pipeline(
-#     [
-#         #("pca", PCA(n_components=0.95)),
-#         (
-#             "regressor",
-#             XGBRegressor(
-#                 objective="reg:squarederror",
-#                 random_state=42,
-#                 n_estimators=400,
-#                 tree_method="hist",
-#             ),
-#         ),
-#     ]
-# )
-
-# param_grid = {
-#     "regressor__max_depth": [3, 5, 8],
-#     "regressor__learning_rate": [0.03, 0.05],
-#     "regressor__subsample": [0.7, 0.9],
-#     "regressor__n_estimators": [10, 50, 200, 400],
-# }
-
-# pipeline 2
+# linear model
 pipeline = Pipeline(
     [
         # not really needed since our input is very tamed
-        #("scaler", StandardScaler()),
-
-        # forcing some overfitting here to test pipeline
-        #("poly", PolynomialFeatures(degree=2, include_bias=False)),
-
+        # ("scaler", StandardScaler()),
+        # add squared features
+        # ("poly", PolynomialFeatures(degree=2, include_bias=False)),
         # simple regressor
-        #("pca", PCA(n_components=0.95)),
+        # ("pca", PCA(n_components=0.95)),
         ("regressor", Ridge(random_state=42))
     ]
 )
 
+param_grid = {"regressor__alpha": [1e-2, 0.1, 1.0, 10.0, 100.0]}
+
+# Neural Net (better to use pytorch if you want transformers etc.)
+# skorch is a good wrapper to keep the below framework
+from sklearn.neural_network import MLPRegressor
+
+pipeline = Pipeline(
+    [
+        # MLP is sensitive to feature scale
+        ("scaler", StandardScaler()),
+        (
+            "regressor",
+            MLPRegressor(
+                hidden_layer_sizes=(64, 32),
+                activation="relu",
+                solver="adam",
+                max_iter=200,
+                early_stopping=True,
+                validation_fraction=0.1,
+                random_state=42,
+            ),
+        ),
+    ]
+)
+
 param_grid = {
-    "regressor__alpha": [1e-2, 0.1, 1.0, 10.0, 100.]
+    "regressor__hidden_layer_sizes": [(64, 32), (128, 64), (64, 32, 16)],
+    "regressor__alpha": [1e-4, 1e-3, 1e-2],  # L2 regularization
+    "regressor__learning_rate_init": [1e-3, 5e-4],
+}
+
+# XGBoost model
+from xgboost import XGBRegressor
+
+pipeline = Pipeline(
+    [
+        (
+            "regressor",
+            XGBRegressor(
+                objective="reg:squarederror",
+                random_state=42,
+                n_estimators=400,
+                tree_method="hist",
+            ),
+        ),
+    ]
+)
+param_grid = {
+    "regressor__max_depth": [3, 5],
+    "regressor__learning_rate": [0.03, 0.05],
+    "regressor__n_estimators": [10, 50, 200, 400],
 }
 
 
-# grid search object
+####################################################
+# Grid Search
+####################################################
+from sklearn.model_selection import GridSearchCV, TimeSeriesSplit, KFold
+from btlight.ml.splitters.rolling_timeseries_split import PanelTimeSeriesSplit
+
 grid_search = GridSearchCV(
     pipeline,
     param_grid,
-    #cv=KFold(n_splits=5),
+    # cv=KFold(n_splits=5),
     cv=PanelTimeSeriesSplit(n_splits=3, date_level="DATE"),
     n_jobs=-1,
     scoring=ic_score,
     # scoring="neg_mean_squared_error",
-    refit=True, # likely default, will refit on entire sample once hyper param is found
+    refit=True,
 )
 
 ####################################################
@@ -391,8 +401,11 @@ grid_search = GridSearchCV(
 # this can only be done if X and y are aligned
 time_grid = X.index.get_level_values("DATE").unique().sort_values()
 
-# to reduce the sample size for testing purposes, we can filter the time grid to start from a later date
+# to reduce the sample size for testing purposes,
+# we can filter the time grid to start from a later date
+# also the compustat data seem poor in the very last years
 time_grid = time_grid[time_grid > "2010-01-01"]
+time_grid = time_grid[time_grid < "2020-01-01"]
 
 
 ####################################################
@@ -412,33 +425,33 @@ rolling_splitter.print_splits(X=X)
 
 ####################################################
 # look at one example / split
-# TODO: make this be built in parallel for all!
 ####################################################
 study = False
 
 if study:
     from sklearn.base import clone
+
     splits = rolling_splitter.split(X=X)
-    
+
     # get training info of first split
     # first split
     train_idx, test_idx = next(splits)
     # this is how you move to the next split
     train_idx, test_idx = next(splits)
-    
+
     X_train = X.loc[train_idx]
     y_train = y.loc[train_idx]
-    
+
     # clone model and fit
     model = clone(grid_search)
     model.fit(X=X_train, y=y_train)
-    
+
     # results from GridSearchCV
     results = model.cv_results_
-    
+
     # Find all hyperparameter columns
     param_cols = [c for c in results.keys() if c.startswith("param_regressor__")]
-    
+
     # extract values for each parameter
     param_data = {}
     for c in param_cols:
@@ -446,56 +459,60 @@ if study:
         try:
             values = values.astype(float)
         except:
-            pass  
+            pass
         param_data[c.replace("param_regressor__", "")] = values
-    
+
     # add the test score (negative mse, higher is better)
     param_data["mean_test_score"] = results["mean_test_score"]
     param_data["std_test_score"] = results["std_test_score"]
     # ad the mse (sign flip, note this will need chagnes if you change the score func.)
     param_data["mean_test_mse"] = -results["mean_test_score"]
-    
+
     # Make DataFrame
     df = pd.DataFrame(param_data)
-    
+
     # sorting
-    param_name = "alpha" # or alpha or what is suitable
+    param_name = "alpha"  # or alpha or what is suitable
     df = df.sort_values(by=[param_name], ascending=False)
-    #df = df.sort_values(by=["alpha"], ascending=False)
-    
-    
+    # df = df.sort_values(by=["alpha"], ascending=False)
+
     # simple Hyperparam plot for Ridge Regression
     import matplotlib.pyplot as plt
-    plt.figure(figsize=(8,5))
-    plt.semilogx(df[param_name], df['mean_test_score'], marker='o', linestyle='-')
+
+    plt.figure(figsize=(8, 5))
+    plt.semilogx(df[param_name], df["mean_test_score"], marker="o", linestyle="-")
     plt.xlabel("Alpha (log scale)")
     plt.ylabel("Mean CV Score")
     plt.title("Ridge: CV Score vs Alpha")
     plt.grid(True, which="both", linestyle="--", linewidth=0.5)
     plt.show()
-    
+
     # why is the standard deviation so high?
-    plt.figure(figsize=(8,5))
-    
+    plt.figure(figsize=(8, 5))
+
     # Semilog-x plot with shaded std region
-    plt.semilogx(df[param_name], df['mean_test_score'], marker='o', linestyle='-', label='Mean CV MSE')
+    plt.semilogx(
+        df[param_name], df["mean_test_score"], marker="o", linestyle="-", label="Mean CV MSE"
+    )
     plt.fill_between(
         df[param_name],
-        df['mean_test_score'] - df['std_test_score'],
-        df['mean_test_score'] + df['std_test_score'],
-        alpha=0.2
+        df["mean_test_score"] - df["std_test_score"],
+        df["mean_test_score"] + df["std_test_score"],
+        alpha=0.2,
     )
-    
+
     plt.xlabel("Alpha (log scale)")
     plt.ylabel("Mean CV Score")
     plt.title("Ridge: CV Score vs Alpha")
     plt.grid(True, which="both", linestyle="--", linewidth=0.5)
     plt.show()
 
+    print(
+        pd.Series(
+            model.best_estimator_.named_steps["regressor"].coef_, index=X.columns
+        ).sort_values()
+    )
 
-    print(pd.Series(model.best_estimator_.named_steps["regressor"].coef_, index=X.columns).sort_values())
-    
-    
 
 ####################################################
 # Train (will persist the models to disk)
@@ -503,6 +520,7 @@ if study:
 from btlight.ml.training.traintest import train_func
 from sklearn.base import clone
 import joblib
+
 
 n_jobs = joblib.effective_n_jobs()
 
@@ -528,6 +546,7 @@ with joblib.parallel_backend("loky", n_jobs=n_jobs, verbose=True):
 
 print("Training Done")
 logger.info("Training Done")
+
 
 
 ####################################################
@@ -596,6 +615,7 @@ for item in result:
     ic_train.append(ic_score_func(y.reindex(y_hat_train.index), y_hat_train.values.reshape(-1)))
 
 import matplotlib.pyplot as plt
+
 plt.plot(ic_test)
 plt.plot(ic_train)
 plt.show()
@@ -604,8 +624,10 @@ y.reindex(y_hat.index), y_hat
 ic_score_func(y.reindex(y_hat.index), y_hat.values.reshape(-1))
 pd.Series(y_hat.values.reshape(-1))
 
+
 def ic_score_func(y_true, y_pred):
     return cross_sectional_ic(y_true, pd.Series(y_pred, index=y_true.index))
+
 
 ####################################################
 # Shap Values Computation
@@ -679,7 +701,6 @@ plt.show()
 importance.mean().sort_values(ascending=False)
 
 
-
 # inspecting single split / model
 # filter one split
 split_id = 0
@@ -694,4 +715,3 @@ shap_exp = shap.Explanation(
 )
 
 shap.plots.heatmap(shap_exp[:1000])
-
