@@ -1,9 +1,60 @@
 import joblib
 import shap
 from pathlib import Path
+from typing import Optional
 
-from btlight.ml.naming.model_name import resolve_target_name
 from btlight.ml.io.model_io import model_path, shap_values_path
+
+
+def _normalize_explainer_type(explainer_type: Optional[str]) -> str:
+    if explainer_type is None:
+        return "generic"
+
+    normalized = explainer_type.strip().lower()
+    aliases = {
+        "default": "generic",
+        "explainer": "generic",
+        "treeexplainer": "tree",
+        "linearexplainer": "linear",
+        "kernelexplainer": "kernel",
+        "permutationexplainer": "permutation",
+    }
+    normalized = aliases.get(normalized, normalized)
+
+    supported = {"generic", "auto", "tree", "linear", "kernel", "permutation"}
+    if normalized not in supported:
+        raise ValueError(
+            "Unsupported explainer_type "
+            f"'{explainer_type}'. Supported values are: "
+            "generic, auto, tree, linear, kernel, permutation."
+        )
+
+    return normalized
+
+
+def _build_explainer(actual_model, X_shap, explainer_type: str):
+    try:
+        if explainer_type == "generic":
+            return shap.Explainer(actual_model.predict, X_shap)
+
+        if explainer_type == "auto":
+            return shap.Explainer(actual_model, X_shap)
+
+        if explainer_type == "tree":
+            return shap.TreeExplainer(actual_model)
+
+        if explainer_type == "linear":
+            return shap.LinearExplainer(actual_model, X_shap)
+
+        if explainer_type == "kernel":
+            return shap.KernelExplainer(actual_model.predict, X_shap)
+
+        return shap.PermutationExplainer(actual_model.predict, X_shap)
+    except Exception as exc:
+        raise ValueError(
+            f"Could not build a '{explainer_type}' SHAP explainer for "
+            f"model type {type(actual_model).__name__}."
+        ) from exc
 
 
 def get_shaply_values(
@@ -11,6 +62,7 @@ def get_shaply_values(
     y,
     train_idx,
     target_asset=None,
+    explainer_type: Optional[str] = None,
 ):
     """
     Compute SHAP values for a trained model loaded from disk.
@@ -19,14 +71,15 @@ def get_shaply_values(
         X: Feature data to explain.
         y: Target data for path resolution.
         train_idx: Training index used for path resolution.
-        shap_explainer_cls: SHAP explainer class to instantiate.
         target_asset: Optional target asset name.
+        explainer_type: Optional SHAP explainer selector. Supported values are
+            generic, auto, tree, linear, kernel, permutation.
 
     Returns:
         SHAP values for X computed by the explainer.
     """
 
-    resolved_target = resolve_target_name(y, target_asset)
+    explainer_name = _normalize_explainer_type(explainer_type)
 
     path = model_path(X, y, train_idx, target_asset)
 
@@ -35,13 +88,24 @@ def get_shaply_values(
 
     if not hasattr(model, "best_estimator_"):
         raise ValueError(
-            f"Loaded model does not have 'best_estimator_' attribute. Ensure the model was trained and saved correctly at {path}."
+            "Loaded model does not have 'best_estimator_' attribute. "
+            "Ensure the model was trained and saved correctly at "
+            f"{path}."
         )
 
-    shap_value_path = shap_values_path(X, y, train_idx, target_asset)
+    shap_value_path = shap_values_path(
+        X,
+        y,
+        train_idx,
+        target_asset,
+        explainer_name=explainer_name,
+    )
 
     if Path(shap_value_path).exists():
-        print(f"SHAP values already computed and saved at {shap_value_path}. Loading from disk...")
+        print(
+            "SHAP values already computed and saved at "
+            f"{shap_value_path}. Loading from disk..."
+        )
         shap_values = joblib.load(shap_value_path)
         return shap_values
 
@@ -65,9 +129,7 @@ def get_shaply_values(
         preprocessing_pipe = pipe[:-1]
         X_shap = preprocessing_pipe.transform(X.loc[train_idx])
 
-    # this is numeric approach that does not include the
-    # model nature - makes it weaker but more generalizable to any model type
-    explainer = shap.Explainer(actual_model.predict, X_shap)
+    explainer = _build_explainer(actual_model, X_shap, explainer_name)
 
     # can take a substantial amount of time due to the
     # many perturbations

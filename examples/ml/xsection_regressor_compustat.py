@@ -299,6 +299,8 @@ pipeline = Pipeline(
 )
 
 param_grid = {"regressor__alpha": [1e-2, 0.1, 1.0, 10.0, 100.0]}
+explainer_type = "linear"
+
 
 # # Neural Net (better to use pytorch if you want transformers etc.)
 # # skorch is a good wrapper to keep the below framework
@@ -350,7 +352,7 @@ param_grid = {"regressor__alpha": [1e-2, 0.1, 1.0, 10.0, 100.0]}
 #     "regressor__learning_rate": [0.03, 0.05],
 #     "regressor__n_estimators": [10, 50, 200, 400],
 # }
-
+# explainer_type = "tree"
 # # more complex pipeline
 # from sklearn.impute import SimpleImputer
 # from sklearn.preprocessing import RobustScaler
@@ -464,7 +466,6 @@ rolling_splitter = ObservationGridRollingSplit(
 rolling_splitter.print_splits(X=X)
 
 
-
 ####################################################
 # Train (will persist the models to disk)
 ####################################################
@@ -570,6 +571,7 @@ with joblib.parallel_backend("loky", n_jobs=n_jobs, verbose=True):
             y=y,
             train_idx=train_idx,
             target_asset=None,
+            explainer_type=explainer_type,
         )
         for train_idx, _ in rolling_splitter.split(X=X)
     )
@@ -595,6 +597,9 @@ df_all_shap.to_parquet(shap_path)
 print("Shap Values Computed")
 logger.info(f"Saved SHAP values to {shap_path}")
 
+
+import pdb
+pdb.set_trace()
 
 ####################################################
 # Shap Value Analysis
@@ -628,14 +633,14 @@ split_id = 0
 df_split = df_all_shap[df_all_shap["split"] == split_id].drop(columns="split")
 
 # rebuild Explanation
-shap_exp = shap.Explanation(
-    values=df_split.values,
-    base_values=None,  # optional
-    feature_names=df_split.columns,
-    data=None,  # optional
-)
+# shap_exp = shap.Explanation(
+#     values=df_split.values,
+#     base_values=None,  # optional
+#     feature_names=df_split.columns,
+#     data=None,  # optional
+# )
 
-shap.plots.heatmap(shap_exp[:1000])
+# shap.plots.heatmap(shap_exp[:1000])
 
 
 ####################################################
