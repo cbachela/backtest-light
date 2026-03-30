@@ -651,6 +651,7 @@ from btlight.ml.metrics.scoring import ic_score_func, cross_sectional_ic
 
 y_pred_test_df = pd.read_parquet(prediction_path)
 y = pd.read_parquet(label_path).squeeze()
+X = pd.read_parquet(feature_path)
 
 y_hat = y_pred_test_df.stack().dropna()
 
@@ -676,6 +677,7 @@ for date in y_hat.index.get_level_values("DATE").unique():
     y_lag_date = y.groupby(level="ID").shift(1).loc[y_true_date.index].values.reshape(-1)
     y_sf_date = X['qmj'].loc[y_true_date.index].values.reshape(-1)
     y_sf_date_scaled = (y_sf_date - y_sf_date.min()) / (y_sf_date.max() - y_sf_date.min())
+    
 
     # calculate rank spearman IC for the date and predictor
     ic_by_date_ml.loc[date] = ic_score_func(y_true_date, y_pred_date.values.reshape(-1))
@@ -706,7 +708,17 @@ for date in y_hat.index.get_level_values("DATE").unique():
 # plot the sum
 ic_by_date_ml.cumsum().plot(label="trained model", color='tab:blue')
 ic_by_date_maxlikely.cumsum().plot(label="last observation as prediction", color='black')
-ic_by_date_sf.cumsum().plot(label="qmj factor", color='tab:orange')
+ic_by_date_sf.cumsum().plot(label="qmj factor mapped to [0,1]", color='tab:orange')
+plt.title("Test Sample Performance")
+plt.legend(loc="upper left")
+plt.ylabel(r"rank spearman $f(y,\hat{y})$")
+plt.grid(alpha=0.4)
+plt.show()
+
+
+# plot the excess rank spearman cum sum..
+(ic_by_date_ml-ic_by_date_sf).cumsum().plot(label="ml excess rank spearman", color='tab:blue')
+plt.title("Test Sample Performance")
 plt.legend(loc="upper left")
 plt.ylabel(r"rank spearman $f(y,\hat{y})$")
 plt.grid(alpha=0.4)
@@ -716,8 +728,9 @@ plt.show()
 # plot the rolling mean
 ic_by_date_ml.rolling(12*3).mean().plot(label="trained model", color='tab:blue')
 ic_by_date_maxlikely.rolling(12*3).mean().plot(label="last observation as prediction", color='black')
-ic_by_date_sf.rolling(12*3).mean().plot(label="qmj factor", color='tab:orange')
+ic_by_date_sf.rolling(12*3).mean().plot(label="qmj factor mapped to [0,1]", color='tab:orange')
 plt.legend(loc="upper left")
+plt.title("Test Sample Performance")
 plt.ylabel(r"mean rolling rank spearman $f(y,\hat{y})$")
 plt.grid(alpha=0.4)
 plt.show()
@@ -725,8 +738,9 @@ plt.show()
 
 # MAE 
 mae_by_date_ml.plot(label="trained model", color='tab:blue')
-mae_by_date_sf.plot(label="qmj factor", color='tab:orange')
+mae_by_date_sf.plot(label="qmj factor mapped to [0,1]", color='tab:orange')
 plt.legend(loc="upper left")
+plt.title("Test Sample Performance")
 plt.ylabel(r"MAE $f(y,\hat{y})$")
 plt.grid(alpha=0.4)
 plt.legend(loc='center left')
