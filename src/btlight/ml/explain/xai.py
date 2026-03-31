@@ -2,8 +2,10 @@ import joblib
 import shap
 from pathlib import Path
 from typing import Optional
-
 from btlight.ml.io.model_io import model_path, shap_values_path
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_explainer_type(explainer_type: Optional[str]) -> str:
@@ -137,6 +139,6 @@ def get_shaply_values(
 
     # save the computed SHAP values to disk for future use
     joblib.dump(shap_values, shap_value_path)
-    print(f"SHAP values computed and saved at {shap_value_path}.")
-
+    logger.info("SHAP values computed and saved at %s.", shap_value_path)
+    
     return shap_values

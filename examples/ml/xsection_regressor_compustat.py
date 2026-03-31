@@ -82,7 +82,7 @@ else:
     feature_cols = [
         "ret_6_1",      # Momentum6
         "ret_12_1",     # Momentum12  
-        "qmj",          # QualityScore
+        "qmj",          # Quality minus Junk
         "qmj_growth",   # GrowthComp
         "qmj_safety",   # SafetyComp
         "gp_at",        # GrossProfit
@@ -285,7 +285,7 @@ from btlight.ml.metrics.scoring import ic_score_func
 
 ic_score = make_scorer(ic_score_func, greater_is_better=True)
 
-# # linear model
+# linear model
 pipeline = Pipeline(
     [
         # not really needed since our input is very tamed
@@ -293,12 +293,12 @@ pipeline = Pipeline(
         # add squared features
         #("poly", PolynomialFeatures(degree=2, include_bias=False)),
         # simple regressor
-        #("pca", PCA(n_components=0.95)),
+        #("pca", PCA()),
         ("regressor", Ridge(random_state=42))
     ]
 )
 
-param_grid = {"regressor__alpha": [1e-2, 0.1, 1.0, 10.0, 100.0]}
+param_grid = {"regressor__alpha": [1e-6, 1e-2, 0.1, 1.0, 10.0, 100.0, 1e6]}
 explainer_type = "linear"
 
 
@@ -341,7 +341,7 @@ explainer_type = "linear"
 #             XGBRegressor(
 #                 objective="reg:absoluteerror",
 #                 random_state=42,
-#                 n_estimators=400,
+#                 n_estimators=200,
 #                 tree_method="hist",
 #             ),
 #         ),
@@ -350,9 +350,11 @@ explainer_type = "linear"
 # param_grid = {
 #     "regressor__max_depth": [3, 5],
 #     "regressor__learning_rate": [0.03, 0.05],
-#     "regressor__n_estimators": [10, 50, 200, 400],
+#     "regressor__n_estimators": [10, 50],
 # }
 # explainer_type = "tree"
+
+
 # # more complex pipeline
 # from sklearn.impute import SimpleImputer
 # from sklearn.preprocessing import RobustScaler
@@ -424,11 +426,12 @@ explainer_type = "linear"
 from sklearn.model_selection import GridSearchCV, TimeSeriesSplit, KFold
 from btlight.ml.splitters.rolling_timeseries_split import PanelTimeSeriesSplit
 
+
 grid_search = GridSearchCV(
     pipeline,
     param_grid,
     # cv=KFold(n_splits=5),
-    cv=PanelTimeSeriesSplit(n_splits=3, date_level="DATE"),
+    cv=PanelTimeSeriesSplit(n_splits=4, date_level="DATE"),
     n_jobs=-1,
     scoring=ic_score,
     # scoring="neg_mean_squared_error",
@@ -467,6 +470,20 @@ rolling_splitter.print_splits(X=X)
 
 
 ####################################################
+# Understanding Training / Validation Splits
+####################################################
+
+# todo: add sector validation, add cpcv and embargo.
+#splits = rolling_splitter.split(X=X)
+
+# get training info of first split
+# first split
+#train_idx, test_idx = next(splits)
+
+#PanelTimeSeriesSplit(n_splits=5, date_level="DATE").show(X=X.loc[train_idx])
+
+
+####################################################
 # Train (will persist the models to disk)
 ####################################################
 from btlight.ml.training.traintest import train_func
@@ -496,7 +513,7 @@ with joblib.parallel_backend("loky", n_jobs=n_jobs, verbose=True):
 
     joblib.Parallel()(jobs)
 
-print("Training Done")
+
 logger.info("Training Done")
 
 
@@ -526,6 +543,7 @@ with joblib.parallel_backend("loky", n_jobs=n_jobs, verbose=True):
     # list of tuples (resolved_target, y_pred_test, y_pred_train)
     result = joblib.Parallel()(jobs)
 
+logger.info("Testing Done")
 
 ####################################################
 # Persist the predictions
@@ -594,12 +612,13 @@ for i, sv in enumerate(result):
 df_all_shap = pd.concat(dfs)
 df_all_shap.to_parquet(shap_path)
 
-print("Shap Values Computed")
+
 logger.info(f"Saved SHAP values to {shap_path}")
 
 
 import pdb
 pdb.set_trace()
+# end of computational part - below is analysis and understandings.
 
 ####################################################
 # Shap Value Analysis
@@ -627,124 +646,145 @@ plt.show()
 importance.mean().sort_values(ascending=False)
 
 
-# inspecting single split / model
-# filter one split
-split_id = 0
-df_split = df_all_shap[df_all_shap["split"] == split_id].drop(columns="split")
-
-# rebuild Explanation
-# shap_exp = shap.Explanation(
-#     values=df_split.values,
-#     base_values=None,  # optional
-#     feature_names=df_split.columns,
-#     data=None,  # optional
-# )
-
-# shap.plots.heatmap(shap_exp[:1000])
-
-
 ####################################################
 # Metric Analysis on Test Predictions
 ####################################################
+import pandas as pd
 import matplotlib.pyplot as plt
-from btlight.ml.metrics.scoring import ic_score_func, cross_sectional_ic
+from btlight.ml.metrics.scoring import ic_score_func, spearman_correlation_per_date, mae_per_date
 
-y_pred_test_df = pd.read_parquet(prediction_path)
+y_hat = pd.read_parquet(prediction_path).stack().dropna()
 y = pd.read_parquet(label_path).squeeze()
 X = pd.read_parquet(feature_path)
 
-y_hat = y_pred_test_df.stack().dropna()
 
-# na series with same index as y_hat to store the rank spearman values by date
-ic_by_date_ml = pd.Series(index=y_hat.index.get_level_values("DATE").unique(), dtype=float)
-ic_by_date_maxlikely = pd.Series(index=y_hat.index.get_level_values("DATE").unique(), dtype=float)
-ic_by_date_sf = pd.Series(index=y_hat.index.get_level_values("DATE").unique(), dtype=float)
+# Compute metrics and store in a dataframe
+metrics_df = pd.DataFrame({
+    "trained_model": spearman_correlation_per_date(y_true=y, y_pred=y_hat),
+    "last_observation": spearman_correlation_per_date(y_true=y, y_pred=y.groupby(level="ID").shift(1).dropna()),
+    "qmj": spearman_correlation_per_date(y_true=y, y_pred=X['qmj']),
+})
 
-# na series with same index as y_hat to store the mean absolute error values by date
-mae_by_date_ml = pd.Series(index=y_hat.index.get_level_values("DATE").unique(), dtype=float)
-mae_by_date_maxlikely = pd.Series(index=y_hat.index.get_level_values("DATE").unique(), dtype=float)
-mae_by_date_sf = pd.Series(index=y_hat.index.get_level_values("DATE").unique(), dtype=float)
+# Plot cumulative sum
+metrics_df.dropna().cumsum().plot(figsize=(12, 6))
+plt.title("Test Sample Performance")
+plt.ylabel(r"rank spearman $f(y,\hat{y})$")
+plt.legend(["trained model", "last observation as prediction", "qmj"], loc="upper left")
+plt.grid(alpha=0.4)
+plt.show()
 
-for date in y_hat.index.get_level_values("DATE").unique():
+# Compute MAE metrics
+y_sf = X['qmj']
 
-    # align y_true and y_pred for the date
-    y_true_date = y.reindex(y_hat.index[y_hat.index.get_level_values("DATE") == date]).dropna()
-    y_pred_date = y_hat[y_hat.index.get_level_values("DATE") == date].dropna()
+# Scale qmj feature by date
+y_sf_date_scaled = y_sf.groupby(level="DATE").transform(
+    lambda x: (x - x.min()) / (x.max() - x.min())
+)
 
-    # check alignment
-    assert y_true_date.index.equals(y_pred_date.index)
+metrics_df2 = pd.DataFrame({
+    "trained_model": mae_per_date(y_true=y, y_pred=y_hat),
+    "last_observation": mae_per_date(y_true=y, y_pred=y.groupby(level="ID").shift(1).dropna()),
+    "qmj": mae_per_date(y_true=y, y_pred=y_sf_date_scaled),
+})
 
-    y_lag_date = y.groupby(level="ID").shift(1).loc[y_true_date.index].values.reshape(-1)
-    y_sf_date = X['qmj'].loc[y_true_date.index].values.reshape(-1)
-    y_sf_date_scaled = (y_sf_date - y_sf_date.min()) / (y_sf_date.max() - y_sf_date.min())
+# Plot MAE
+metrics_df2.plot(figsize=(12, 6))
+plt.title("Test Sample Performance - MAE")
+plt.ylabel("Mean Absolute Error")
+plt.legend(["trained model", "last observation as prediction", "qmj"], loc="upper left")
+plt.grid(alpha=0.4)
+plt.show()
+
+# # na series with same index as y_hat to store the rank spearman values by date
+# ic_by_date_ml = pd.Series(index=y_hat.index.get_level_values("DATE").unique(), dtype=float)
+# ic_by_date_maxlikely = pd.Series(index=y_hat.index.get_level_values("DATE").unique(), dtype=float)
+# ic_by_date_sf = pd.Series(index=y_hat.index.get_level_values("DATE").unique(), dtype=float)
+
+# # na series with same index as y_hat to store the mean absolute error values by date
+# mae_by_date_ml = pd.Series(index=y_hat.index.get_level_values("DATE").unique(), dtype=float)
+# mae_by_date_maxlikely = pd.Series(index=y_hat.index.get_level_values("DATE").unique(), dtype=float)
+# mae_by_date_sf = pd.Series(index=y_hat.index.get_level_values("DATE").unique(), dtype=float)
+
+# for date in y_hat.index.get_level_values("DATE").unique():
+
+#     # align y_true and y_pred for the date
+#     y_true_date = y.reindex(y_hat.index[y_hat.index.get_level_values("DATE") == date]).dropna()
+#     y_pred_date = y_hat[y_hat.index.get_level_values("DATE") == date].dropna()
+
+#     # check alignment
+#     assert y_true_date.index.equals(y_pred_date.index)
+
+#     y_lag_date = y.groupby(level="ID").shift(1).loc[y_true_date.index].values.reshape(-1)
+#     y_sf_date = X['qmj'].loc[y_true_date.index].values.reshape(-1)
+#     y_sf_date_scaled = (y_sf_date - y_sf_date.min()) / (y_sf_date.max() - y_sf_date.min())
     
 
-    # calculate rank spearman IC for the date and predictor
-    ic_by_date_ml.loc[date] = ic_score_func(y_true_date, y_pred_date.values.reshape(-1))
-    ic_by_date_maxlikely.loc[date] = ic_score_func(y_true_date, y_lag_date)
-    ic_by_date_sf.loc[date] = ic_score_func(y_true_date, y_sf_date_scaled)
+#     # calculate rank spearman IC for the date and predictor
+#     ic_by_date_ml.loc[date] = ic_score_func(y_true_date, y_pred_date.values.reshape(-1))
+#     ic_by_date_maxlikely.loc[date] = ic_score_func(y_true_date, y_lag_date)
+#     ic_by_date_sf.loc[date] = ic_score_func(y_true_date, y_sf_date_scaled)
 
-    # calculate mean absolute error for the date and predictor
-    mae_by_date_ml.loc[date] = np.mean(np.abs(y_true_date.values - y_pred_date.values.reshape(-1)))
-    mae_by_date_maxlikely.loc[date] = np.mean(np.abs(y_true_date.values - y_lag_date))
-    mae_by_date_sf.loc[date] = np.mean(np.abs(y_true_date.values - y_sf_date_scaled))
-
-
-    # make a loop and show them all, qmj is good
-    # feature_cols = [
-    #     "ret_6_1",      # Momentum6
-    #     "ret_12_1",     # Momentum12  
-    #     "qmj",          # QualityScore
-    #     "qmj_growth",   # GrowthComp
-    #     "qmj_safety",   # SafetyComp
-    #     "gp_at",        # GrossProfit
-    #     "op_at",        # OpProfit
-    #     "be_me",        # BookValue
-    #     "debt_me",      # Leverage
-    #     "at_gr1",       # AssetGrowth
-    #     "oaccruals_at", # Accruals
-    # ]
-
-# plot the sum
-ic_by_date_ml.cumsum().plot(label="trained model", color='tab:blue')
-ic_by_date_maxlikely.cumsum().plot(label="last observation as prediction", color='black')
-ic_by_date_sf.cumsum().plot(label="qmj factor mapped to [0,1]", color='tab:orange')
-plt.title("Test Sample Performance")
-plt.legend(loc="upper left")
-plt.ylabel(r"rank spearman $f(y,\hat{y})$")
-plt.grid(alpha=0.4)
-plt.show()
+#     # calculate mean absolute error for the date and predictor
+#     mae_by_date_ml.loc[date] = np.mean(np.abs(y_true_date.values - y_pred_date.values.reshape(-1)))
+#     mae_by_date_maxlikely.loc[date] = np.mean(np.abs(y_true_date.values - y_lag_date))
+#     mae_by_date_sf.loc[date] = np.mean(np.abs(y_true_date.values - y_sf_date_scaled))
 
 
-# plot the excess rank spearman cum sum..
-(ic_by_date_ml-ic_by_date_sf).cumsum().plot(label="ml excess rank spearman", color='tab:blue')
-plt.title("Test Sample Performance")
-plt.legend(loc="upper left")
-plt.ylabel(r"rank spearman $f(y,\hat{y})$")
-plt.grid(alpha=0.4)
-plt.show()
+#     # make a loop and show them all, qmj is good
+#     # feature_cols = [
+#     #     "ret_6_1",      # Momentum6
+#     #     "ret_12_1",     # Momentum12  
+#     #     "qmj",          # QualityScore
+#     #     "qmj_growth",   # GrowthComp
+#     #     "qmj_safety",   # SafetyComp
+#     #     "gp_at",        # GrossProfit
+#     #     "op_at",        # OpProfit
+#     #     "be_me",        # BookValue
+#     #     "debt_me",      # Leverage
+#     #     "at_gr1",       # AssetGrowth
+#     #     "oaccruals_at", # Accruals
+#     # ]
+
+# # plot the sum
+# ic_by_date_ml.cumsum().plot(label="trained model", color='tab:blue')
+# ic_by_date_maxlikely.cumsum().plot(label="last observation as prediction", color='black')
+# ic_by_date_sf.cumsum().plot(label="qmj factor mapped to [0,1]", color='tab:orange')
+# plt.title("Test Sample Performance")
+# plt.legend(loc="upper left")
+# plt.ylabel(r"rank spearman $f(y,\hat{y})$")
+# plt.grid(alpha=0.4)
+# plt.show()
 
 
-# plot the rolling mean
-ic_by_date_ml.rolling(12*3).mean().plot(label="trained model", color='tab:blue')
-ic_by_date_maxlikely.rolling(12*3).mean().plot(label="last observation as prediction", color='black')
-ic_by_date_sf.rolling(12*3).mean().plot(label="qmj factor mapped to [0,1]", color='tab:orange')
-plt.legend(loc="upper left")
-plt.title("Test Sample Performance")
-plt.ylabel(r"mean rolling rank spearman $f(y,\hat{y})$")
-plt.grid(alpha=0.4)
-plt.show()
+# # plot the excess rank spearman cum sum..
+# (ic_by_date_ml-ic_by_date_sf).cumsum().plot(label="ml excess rank spearman", color='tab:blue')
+# plt.title("Test Sample Performance")
+# plt.legend(loc="upper left")
+# plt.ylabel(r"rank spearman $f(y,\hat{y})$")
+# plt.grid(alpha=0.4)
+# plt.show()
 
 
-# MAE 
-mae_by_date_ml.plot(label="trained model", color='tab:blue')
-mae_by_date_sf.plot(label="qmj factor mapped to [0,1]", color='tab:orange')
-plt.legend(loc="upper left")
-plt.title("Test Sample Performance")
-plt.ylabel(r"MAE $f(y,\hat{y})$")
-plt.grid(alpha=0.4)
-plt.legend(loc='center left')
-plt.show()
+# # plot the rolling mean
+# ic_by_date_ml.rolling(12*3).mean().plot(label="trained model", color='tab:blue')
+# ic_by_date_maxlikely.rolling(12*3).mean().plot(label="last observation as prediction", color='black')
+# ic_by_date_sf.rolling(12*3).mean().plot(label="qmj factor mapped to [0,1]", color='tab:orange')
+# plt.legend(loc="upper left")
+# plt.title("Test Sample Performance")
+# plt.ylabel(r"mean rolling rank spearman $f(y,\hat{y})$")
+# plt.grid(alpha=0.4)
+# plt.show()
+
+
+# # MAE 
+# mae_by_date_ml.plot(label="trained model", color='tab:blue')
+# mae_by_date_sf.plot(label="qmj factor mapped to [0,1]", color='tab:orange')
+# plt.legend(loc="upper left")
+# plt.title("Test Sample Performance")
+# plt.ylabel(r"MAE $f(y,\hat{y})$")
+# plt.grid(alpha=0.4)
+# plt.legend(loc='center left')
+# plt.show()
 
 
 ####################################################
