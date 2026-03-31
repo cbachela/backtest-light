@@ -1,3 +1,6 @@
+# flake8: noqa
+# pylint: skip-file
+
 ################################
 # Control Params
 ################################
@@ -286,20 +289,20 @@ from btlight.ml.metrics.scoring import ic_score_func
 ic_score = make_scorer(ic_score_func, greater_is_better=True)
 
 # linear model
-pipeline = Pipeline(
-    [
-        # not really needed since our input is very tamed
-        #("scaler", MinMaxScaler()),
-        # add squared features
-        #("poly", PolynomialFeatures(degree=2, include_bias=False)),
-        # simple regressor
-        #("pca", PCA()),
-        ("regressor", Ridge(random_state=42))
-    ]
-)
+# pipeline = Pipeline(
+#     [
+#         # not really needed since our input is very tamed
+#         #("scaler", MinMaxScaler()),
+#         # add squared features
+#         #("poly", PolynomialFeatures(degree=2, include_bias=False)),
+#         # simple regressor
+#         #("pca", PCA()),
+#         ("regressor", Ridge(random_state=42))
+#     ]
+# )
 
-param_grid = {"regressor__alpha": [1e-6, 1e-2, 0.1, 1.0, 10.0, 100.0, 1e6]}
-explainer_type = "linear"
+# param_grid = {"regressor__alpha": [1e-6, 1e-2, 0.1, 1.0, 10.0, 100.0, 1e6]}
+# explainer_type = "linear"
 
 
 # # Neural Net (better to use pytorch if you want transformers etc.)
@@ -332,27 +335,31 @@ explainer_type = "linear"
 # }
 
 # XGBoost model
-# from xgboost import XGBRegressor
-
-# pipeline = Pipeline(
-#     [
-#         (
-#             "regressor",
-#             XGBRegressor(
-#                 objective="reg:absoluteerror",
-#                 random_state=42,
-#                 n_estimators=200,
-#                 tree_method="hist",
-#             ),
-#         ),
-#     ]
-# )
-# param_grid = {
-#     "regressor__max_depth": [3, 5],
-#     "regressor__learning_rate": [0.03, 0.05],
-#     "regressor__n_estimators": [10, 50],
-# }
-# explainer_type = "tree"
+from xgboost import XGBRegressor
+pipeline = Pipeline(
+    [
+        (
+            "regressor",
+            XGBRegressor(
+                objective="reg:absoluteerror",
+                random_state=42,
+                n_estimators=200,
+                tree_method="hist",
+            ),
+        ),
+    ]
+)
+param_grid = {
+    "regressor__max_depth": [2, 3],
+    "regressor__learning_rate": [0.01, 0.02],
+    "regressor__n_estimators": [10, 50],
+    "regressor__reg_alpha": [0.5, 1.0, 2.0],      # L1 regularization
+    "regressor__reg_lambda": [1.0, 5.0, 10.0],    # L2 regularization
+    "regressor__min_child_weight": [5, 10],       # Prevent small leaves
+    "regressor__subsample": [0.6, 0.8],           # Row subsampling
+    "regressor__colsample_bytree": [0.6, 0.8],   # Column subsampling
+}
+explainer_type = "tree"
 
 
 # # more complex pipeline
@@ -666,7 +673,7 @@ metrics_df = pd.DataFrame({
 })
 
 # Plot cumulative sum
-metrics_df.dropna().cumsum().plot(figsize=(12, 6))
+metrics_df.dropna().cumsum().plot(figsize=(6, 4))
 plt.title("Test Sample Performance")
 plt.ylabel(r"rank spearman $f(y,\hat{y})$")
 plt.legend(["trained model", "last observation as prediction", "qmj"], loc="upper left")
@@ -688,103 +695,12 @@ metrics_df2 = pd.DataFrame({
 })
 
 # Plot MAE
-metrics_df2.plot(figsize=(12, 6))
+metrics_df2.dropna().plot(figsize=(6, 4))
 plt.title("Test Sample Performance - MAE")
 plt.ylabel("Mean Absolute Error")
 plt.legend(["trained model", "last observation as prediction", "qmj"], loc="upper left")
 plt.grid(alpha=0.4)
 plt.show()
-
-# # na series with same index as y_hat to store the rank spearman values by date
-# ic_by_date_ml = pd.Series(index=y_hat.index.get_level_values("DATE").unique(), dtype=float)
-# ic_by_date_maxlikely = pd.Series(index=y_hat.index.get_level_values("DATE").unique(), dtype=float)
-# ic_by_date_sf = pd.Series(index=y_hat.index.get_level_values("DATE").unique(), dtype=float)
-
-# # na series with same index as y_hat to store the mean absolute error values by date
-# mae_by_date_ml = pd.Series(index=y_hat.index.get_level_values("DATE").unique(), dtype=float)
-# mae_by_date_maxlikely = pd.Series(index=y_hat.index.get_level_values("DATE").unique(), dtype=float)
-# mae_by_date_sf = pd.Series(index=y_hat.index.get_level_values("DATE").unique(), dtype=float)
-
-# for date in y_hat.index.get_level_values("DATE").unique():
-
-#     # align y_true and y_pred for the date
-#     y_true_date = y.reindex(y_hat.index[y_hat.index.get_level_values("DATE") == date]).dropna()
-#     y_pred_date = y_hat[y_hat.index.get_level_values("DATE") == date].dropna()
-
-#     # check alignment
-#     assert y_true_date.index.equals(y_pred_date.index)
-
-#     y_lag_date = y.groupby(level="ID").shift(1).loc[y_true_date.index].values.reshape(-1)
-#     y_sf_date = X['qmj'].loc[y_true_date.index].values.reshape(-1)
-#     y_sf_date_scaled = (y_sf_date - y_sf_date.min()) / (y_sf_date.max() - y_sf_date.min())
-    
-
-#     # calculate rank spearman IC for the date and predictor
-#     ic_by_date_ml.loc[date] = ic_score_func(y_true_date, y_pred_date.values.reshape(-1))
-#     ic_by_date_maxlikely.loc[date] = ic_score_func(y_true_date, y_lag_date)
-#     ic_by_date_sf.loc[date] = ic_score_func(y_true_date, y_sf_date_scaled)
-
-#     # calculate mean absolute error for the date and predictor
-#     mae_by_date_ml.loc[date] = np.mean(np.abs(y_true_date.values - y_pred_date.values.reshape(-1)))
-#     mae_by_date_maxlikely.loc[date] = np.mean(np.abs(y_true_date.values - y_lag_date))
-#     mae_by_date_sf.loc[date] = np.mean(np.abs(y_true_date.values - y_sf_date_scaled))
-
-
-#     # make a loop and show them all, qmj is good
-#     # feature_cols = [
-#     #     "ret_6_1",      # Momentum6
-#     #     "ret_12_1",     # Momentum12  
-#     #     "qmj",          # QualityScore
-#     #     "qmj_growth",   # GrowthComp
-#     #     "qmj_safety",   # SafetyComp
-#     #     "gp_at",        # GrossProfit
-#     #     "op_at",        # OpProfit
-#     #     "be_me",        # BookValue
-#     #     "debt_me",      # Leverage
-#     #     "at_gr1",       # AssetGrowth
-#     #     "oaccruals_at", # Accruals
-#     # ]
-
-# # plot the sum
-# ic_by_date_ml.cumsum().plot(label="trained model", color='tab:blue')
-# ic_by_date_maxlikely.cumsum().plot(label="last observation as prediction", color='black')
-# ic_by_date_sf.cumsum().plot(label="qmj factor mapped to [0,1]", color='tab:orange')
-# plt.title("Test Sample Performance")
-# plt.legend(loc="upper left")
-# plt.ylabel(r"rank spearman $f(y,\hat{y})$")
-# plt.grid(alpha=0.4)
-# plt.show()
-
-
-# # plot the excess rank spearman cum sum..
-# (ic_by_date_ml-ic_by_date_sf).cumsum().plot(label="ml excess rank spearman", color='tab:blue')
-# plt.title("Test Sample Performance")
-# plt.legend(loc="upper left")
-# plt.ylabel(r"rank spearman $f(y,\hat{y})$")
-# plt.grid(alpha=0.4)
-# plt.show()
-
-
-# # plot the rolling mean
-# ic_by_date_ml.rolling(12*3).mean().plot(label="trained model", color='tab:blue')
-# ic_by_date_maxlikely.rolling(12*3).mean().plot(label="last observation as prediction", color='black')
-# ic_by_date_sf.rolling(12*3).mean().plot(label="qmj factor mapped to [0,1]", color='tab:orange')
-# plt.legend(loc="upper left")
-# plt.title("Test Sample Performance")
-# plt.ylabel(r"mean rolling rank spearman $f(y,\hat{y})$")
-# plt.grid(alpha=0.4)
-# plt.show()
-
-
-# # MAE 
-# mae_by_date_ml.plot(label="trained model", color='tab:blue')
-# mae_by_date_sf.plot(label="qmj factor mapped to [0,1]", color='tab:orange')
-# plt.legend(loc="upper left")
-# plt.title("Test Sample Performance")
-# plt.ylabel(r"MAE $f(y,\hat{y})$")
-# plt.grid(alpha=0.4)
-# plt.legend(loc='center left')
-# plt.show()
 
 
 ####################################################
@@ -801,8 +717,9 @@ for item in result:
     ic_test.append(ic_score_func(y.reindex(y_hat_test.index), y_hat_test.values.reshape(-1)))
     ic_train.append(ic_score_func(y.reindex(y_hat_train.index), y_hat_train.values.reshape(-1)))
 
-plt.plot(ic_test, label="IC Test")
-plt.plot(ic_train, label="IC Train")
+
+plt.plot((np.array(ic_test)), label="IC Test")
+plt.plot((np.array(ic_train)), label="IC Train")
 plt.legend()
 plt.grid(alpha=0.4)
 plt.show()
@@ -819,7 +736,6 @@ pd.Series(y_hat.values.reshape(-1))
 study = False
 
 if study:
-    from sklearn.base import clone
 
     splits = rolling_splitter.split(X=X)
 
