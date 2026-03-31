@@ -252,20 +252,18 @@ common_index = X.index.intersection(y.index).sort_values()
 X = X.loc[common_index]
 y = y.loc[common_index]
 
-print("X.shape", X.shape)
-print("y.shape", y.shape)
-
+logger.info(f"Aligned X and y: X.shape={X.shape}, y.shape={y.shape}")
 assert X.index.equals(y.index)
 
 
 # persist the aligned
 if not Path(feature_path).exists() or feature_recompute:
-    print("Persisting Features")
+    logger.info("Persisting Features")
     X.to_parquet(feature_path)
 
 # persist the label for future use
 if not Path(label_path).exists() or label_recompute:
-    print("Persisting Labels")
+    logger.info("Persisting Labels")
     y.to_frame("return").to_parquet(label_path)
 
 
@@ -289,20 +287,20 @@ from btlight.ml.metrics.scoring import ic_score_func
 ic_score = make_scorer(ic_score_func, greater_is_better=True)
 
 # linear model
-# pipeline = Pipeline(
-#     [
-#         # not really needed since our input is very tamed
-#         #("scaler", MinMaxScaler()),
-#         # add squared features
-#         #("poly", PolynomialFeatures(degree=2, include_bias=False)),
-#         # simple regressor
-#         #("pca", PCA()),
-#         ("regressor", Ridge(random_state=42))
-#     ]
-# )
+pipeline = Pipeline(
+    [
+        # not really needed since our input is very tamed
+        #("scaler", MinMaxScaler()),
+        # add squared features
+        #("poly", PolynomialFeatures(degree=2, include_bias=False)),
+        # simple regressor
+        #("pca", PCA()),
+        ("regressor", Ridge(random_state=42))
+    ]
+)
 
-# param_grid = {"regressor__alpha": [1e-6, 1e-2, 0.1, 1.0, 10.0, 100.0, 1e6]}
-# explainer_type = "linear"
+param_grid = {"regressor__alpha": [1e-6, 1e-2, 0.1, 1.0, 10.0, 100.0, 1e6]}
+explainer_type = "linear"
 
 
 # # Neural Net (better to use pytorch if you want transformers etc.)
@@ -334,32 +332,32 @@ ic_score = make_scorer(ic_score_func, greater_is_better=True)
 #     "regressor__learning_rate_init": [1e-3, 5e-4],
 # }
 
-# XGBoost model
-from xgboost import XGBRegressor
-pipeline = Pipeline(
-    [
-        (
-            "regressor",
-            XGBRegressor(
-                objective="reg:absoluteerror",
-                random_state=42,
-                n_estimators=200,
-                tree_method="hist",
-            ),
-        ),
-    ]
-)
-param_grid = {
-    "regressor__max_depth": [2, 3],
-    "regressor__learning_rate": [0.01, 0.02],
-    "regressor__n_estimators": [10, 50],
-    "regressor__reg_alpha": [0.5, 1.0, 2.0],      # L1 regularization
-    "regressor__reg_lambda": [1.0, 5.0, 10.0],    # L2 regularization
-    "regressor__min_child_weight": [5, 10],       # Prevent small leaves
-    "regressor__subsample": [0.6, 0.8],           # Row subsampling
-    "regressor__colsample_bytree": [0.6, 0.8],   # Column subsampling
-}
-explainer_type = "tree"
+# # XGBoost model
+# from xgboost import XGBRegressor
+# pipeline = Pipeline(
+#     [
+#         (
+#             "regressor",
+#             XGBRegressor(
+#                 objective="reg:absoluteerror",
+#                 random_state=42,
+#                 n_estimators=200,
+#                 tree_method="hist",
+#             ),
+#         ),
+#     ]
+# )
+# param_grid = {
+#     "regressor__max_depth": [2, 3],
+#     "regressor__learning_rate": [0.01, 0.02],
+#     "regressor__n_estimators": [10, 50],
+#     "regressor__reg_alpha": [0.5, 1.0, 2.0],      # L1 regularization
+#     "regressor__reg_lambda": [1.0, 5.0, 10.0],    # L2 regularization
+#     "regressor__min_child_weight": [5, 10],       # Prevent small leaves
+#     "regressor__subsample": [0.6, 0.8],           # Row subsampling
+#     "regressor__colsample_bytree": [0.6, 0.8],   # Column subsampling
+# }
+# explainer_type = "tree"
 
 
 # # more complex pipeline
@@ -563,17 +561,16 @@ y_pred_test_df = pd.concat(
     axis=0,
 ).unstack()
 
-print(y_pred_test_df.head())
-print(y_pred_test_df.index)
+#logger.info(f"Predictions head:\n{y_pred_test_df.head()}")
+#logger.info(f"Predictions index:\n{y_pred_test_df.index}")
 
 row_non_na_counts = y_pred_test_df.count(axis=1)
-print("# of predictions per unique DATE:", row_non_na_counts)
+logger.info(f"# of predictions per unique DATE: {row_non_na_counts}")
 
 y_pred_test_df.to_parquet(prediction_path)
 
-print(f"Stored Predictions in {prediction_path}")
-print("Predictions Done")
-logger.info(f"Predictions written to {prediction_path}")
+logger.info(f"Stored Predictions in {prediction_path}")
+logger.info("Predictions Done")
 
 
 ####################################################
