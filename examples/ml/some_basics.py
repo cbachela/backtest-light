@@ -246,5 +246,5 @@ explainer = shap.TreeExplainer(best_model)
 shap_values = explainer.shap_values(X_test)
 
 # Summary plot (global feature importance)
-will correlate by chance in small samples
+# will correlate by chance in small samples
 shap.summary_plot(shap_values, X_test)

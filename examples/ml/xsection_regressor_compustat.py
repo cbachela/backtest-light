@@ -332,7 +332,7 @@ explainer_type = "linear"
 #     "regressor__learning_rate_init": [1e-3, 5e-4],
 # }
 
-# # XGBoost model
+# XGBoost model
 # from xgboost import XGBRegressor
 # pipeline = Pipeline(
 #     [
@@ -340,7 +340,7 @@ explainer_type = "linear"
 #             "regressor",
 #             XGBRegressor(
 #                 objective="reg:absoluteerror",
-#                 random_state=42,
+#                 random_state=42,)
 #                 n_estimators=200,
 #                 tree_method="hist",
 #             ),
