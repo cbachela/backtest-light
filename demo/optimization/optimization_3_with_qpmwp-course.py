@@ -1,14 +1,22 @@
 ############################################################################
-### QPMwP CODING EXAMPLES - OPTIMIZATION 2
+### QPMwP CODING EXAMPLES - OPTIMIZATION 3 - USING CLASSES FROM QPMWP-COURSE
 ############################################################################
 
 # --------------------------------------------------------------------------
 # Cyril Bachelard
-# This version:     18.01.2025
+# This version:     26.01.2026
 # First version:    18.01.2025
 # --------------------------------------------------------------------------
 
 
+
+# Install scipy
+# uv pip install scipy
+
+
+
+# IPython/Jupyter magic commands used for automatically reloading Python modules 
+# during development (so that changes in the code are reflected without needing to restart the kernel):
 
 # %reload_ext autoreload
 # %autoreload 2
@@ -31,7 +39,7 @@ sys.path.append(project_root)
 sys.path.append(src_path)
 
 # Local modules imports
-from btlight.helper_functions import load_data_msci
+from helper_functions import load_data_msci
 from estimation.covariance import Covariance
 from estimation.expected_return import ExpectedReturn
 from optimization.constraints import Constraints
@@ -61,19 +69,22 @@ data
 # Estimates of the expected returns and covariance matrix
 # --------------------------------------------------------------------------
 
-X = data['return_series']
+return_series = data['return_series']
 scalefactor = 1  # could be set to 252 (trading days) for annualized returns
 
 
-expected_return = ExpectedReturn(method='geometric', scalefactor=scalefactor)
-expected_return.estimate(X=X, inplace=True)
+expected_return = ExpectedReturn(
+    method='geometric',
+    scalefactor=scalefactor
+)
+expected_return.estimate(X=return_series, inplace=True)
 # Or:
-mu = expected_return.estimate(X=X, inplace=False)
+mu = expected_return.estimate(X=return_series, inplace=False)
 
 covariance = Covariance(method='pearson')
-covariance.estimate(X=X, inplace=True)
+covariance.estimate(X=return_series, inplace=True)
 # Or:
-Sigma = covariance.estimate(X=X, inplace=False)
+Sigma = covariance.estimate(X=return_series, inplace=False)
 
 
 
@@ -84,7 +95,7 @@ Sigma = covariance.estimate(X=X, inplace=False)
 # --------------------------------------------------------------------------
 
 # Instantiate the class
-constraints = Constraints(ids = X.columns.tolist())
+constraints = Constraints(ids = return_series.columns.tolist())
 
 # Add budget constraint
 constraints.add_budget(rhs=1, sense='=')
@@ -95,7 +106,7 @@ constraints.add_box(lower=0, upper=0.2)
 # Add linear constraints
 G = pd.DataFrame(np.zeros((2, N)), columns=constraints.ids)
 G.iloc[0, 0:5] = 1
-G.iloc[1, 6:10] = 1
+G.iloc[1, 5:10] = 1
 h = pd.Series([0.5, 0.5])
 constraints.add_linear(G=G, sense='<=', rhs=h)
 
@@ -169,7 +180,7 @@ mv.params
 
 # Create an OptimizationData object that contains an element `return_series` holding
 # the last 256 observations (weekdays) of the return series
-optimization_data = OptimizationData(return_series=X.tail(256))
+optimization_data = OptimizationData(return_series=return_series.tail(256))
 
 # Set the objective function
 mv.set_objective(optimization_data=optimization_data)
@@ -180,7 +191,7 @@ mv.solve()
 mv.results
 
 # Extract the optimal weights
-weights_mv = pd.Series(mv.results['weights'], index=X.columns)
+weights_mv = pd.Series(mv.results['weights'], index=return_series.columns)
 weights_mv
 
 
@@ -193,7 +204,6 @@ weights_mv
 # --------------------------------------------------------------------------
 # Solve for a tracking-error minimizing portfolio by least-squares
 # Using class LeastSquares
-# (Lecture 3)
 # --------------------------------------------------------------------------
 
 from optimization.optimization import LeastSquares
@@ -209,15 +219,17 @@ ls = LeastSquares(
 # the last 256 observations (weekdays) of the return series as well as the benchmark
 # return series for the same period
 y = data['bm_series']
-optimization_data = OptimizationData(return_series=X.tail(256),
-                                     bm_series=y,
-                                     align=True)
+optimization_data = OptimizationData(
+    return_series=return_series.tail(256),
+    bm_series=y,
+    align=True
+)
 
 # Set the objective and solve
 ls.set_objective(optimization_data=optimization_data)
 ls.solve()
 
-weights_ls = pd.Series(ls.results['weights'], index=X.columns)
+weights_ls = pd.Series(ls.results['weights'], index=return_series.columns)
 weights_ls
 
 
@@ -236,7 +248,7 @@ weights_mat = pd.concat({
 }, axis=1)
 
 
-sim = X @ weights_mat
+sim = return_series @ weights_mat
 sim['benchmark'] = data['bm_series']
 sim.dropna(how='all', inplace=True)
 

@@ -4,16 +4,17 @@
 
 # --------------------------------------------------------------------------
 # Cyril Bachelard
-# This version:     18.03.2025
+# This version:     09.03.2026
 # First version:    18.01.2025
 # --------------------------------------------------------------------------
 
 
 
 
-# This script demonstrates how to run a backtest using the qpmwp library
-# and with data from MSCI Country Indices (which do not change over time).
-# The script uses the 'MeanVariance' and portfolio optimization class.
+# This script demonstrates how to run a backtest using the qpmwp-course library
+# with data from MSCI Country Indices (which do not change over time).
+
+# The script uses the 'MeanVariance' class for portfolio optimization.
 
 
 
@@ -36,18 +37,18 @@ sys.path.append(project_root)
 sys.path.append(src_path)
 
 # Local modules imports
-from btlight.helper_functions import load_data_msci
-from btlight.estimation.covariance import Covariance
-from btlight.estimation.expected_return import ExpectedReturn
-from btlight.optimization.constraints import Constraints
-from btlight.optimization.optimization import MeanVariance
-from btlight.backtesting.backtest import Backtest
-from btlight.backtesting.service import BacktestService
-from btlight.backtesting.item_builder_classes import (
-    OptimizationItemBuilder,
+from helper_functions import load_data_msci
+from estimation.covariance import Covariance
+from estimation.expected_return import ExpectedReturn
+from optimization.constraints import Constraints
+from optimization.optimization import MeanVariance
+from backtesting.backtest import Backtest                  # NEW
+from backtesting.backtest_service import BacktestService   # NEW
+from backtesting.backtest_item_builder.bib_classes import (
+    OptimizationItemBuilder,                               # NEW
 )
-from btlight.backtesting.item_builder_functions import (
-    bibfn_return_series,
+from backtesting.backtest_item_builder_functions import (
+    bibfn_return_series,                                   # NEW
 )
 
 
@@ -59,7 +60,7 @@ from btlight.backtesting.item_builder_functions import (
 # --------------------------------------------------------------------------
 
 N = 10
-data = load_data_msci(path = '../../data/', n = N)
+data = load_data_msci(path='../data/', n=N)
 data
 
 
@@ -116,11 +117,11 @@ constraints.linear
 
 # Instantiate the optimization object as an instance of MeanVariance
 optimization = MeanVariance(
-    covariance = covariance,
-    expected_return = expected_return,
-    constraints = constraints,
-    risk_aversion = 1,
-    solver_name = 'cvxopt',
+    covariance=covariance,
+    expected_return=expected_return,
+    constraints=constraints,
+    risk_aversion=1,
+    solver_name='cvxopt',
 )
 
 
@@ -155,18 +156,18 @@ rebdates
 
 optimization_item_builders = {
     'return_series': OptimizationItemBuilder(
-        bibfn = bibfn_return_series,
-        width = 256 * 3,
+        bibfn=bibfn_return_series,
+        width=256 * 3,
     ),
 }
 
 
 # Initialize the backtest service
 bs = BacktestService(
-    data = data,
-    optimization = optimization,
-    optimization_item_builders = optimization_item_builders,
-    rebdates = rebdates,
+    data=data,
+    optimization=optimization,
+    optimization_item_builders=optimization_item_builders,
+    rebdates=rebdates,
 )
 
 
@@ -182,7 +183,19 @@ bs = BacktestService(
 bt_mv = Backtest()
 
 # Run the backtest
-bt_mv.run(bs = bs)
+bt_mv.run(bs=bs)
+
+
+
+
+
+# --------------------------------------------------------------------------
+# Save backtest as pickle file
+# --------------------------------------------------------------------------
+
+save_path = ''  # <change this to your path>
+bt_mv.save(path=save_path, filename='demo_backtest_1_mv.pkl')
+
 
 
 
@@ -234,8 +247,9 @@ sim = pd.concat({
 sim.columns = sim.columns.get_level_values(0)
 
 
-np.log((1 + sim)).cumsum().plot(title='Cumulative Performance', figsize = (10, 6))
-
+(1 + sim).cumprod().plot(title='Cumulative Performance', figsize= (10, 6))
+# np.log((1 + sim)).cumsum().plot(title='Cumulative Performance', figsize=(10, 6))
+# np.log((1 + sim).cumprod()).plot(title='Cumulative Performance', figsize=(10, 6))
 
 
 
@@ -245,9 +259,11 @@ def sim_outperformance(x: pd.DataFrame, y: pd.Series) -> pd.Series:
     ans = (x.subtract(y, axis=0)).divide(1 + y, axis=0)
     return ans
 
+
 sim_rel = sim_outperformance(sim, sim['bm'])
 
-np.log((1 + sim_rel)).cumsum().plot(title='Cumulative Out-/Underperformance', figsize = (10, 6))
+(1 + sim_rel).cumprod().plot(title='Cumulative Out-/Underperformance', figsize=(10, 6))
+# np.log((1 + sim_rel).cumprod()).plot(title='Cumulative Out-/Underperformance', figsize=(10, 6))
 
 
 
@@ -260,7 +276,7 @@ np.log((1 + sim_rel)).cumsum().plot(title='Cumulative Out-/Underperformance', fi
 # Decriptive statistics
 # --------------------------------------------------------------------------
 
-# pip install empyrical
+# uv pip install empyrical
 import empyrical as ep
 
 # Load your strategy returns here
@@ -282,7 +298,7 @@ print(f'Alpha: {alpha_beta[0]}, Beta: {alpha_beta[1]}')
 
 
 
-# pip install quantstats
+# uv pip install quantstats
 import quantstats as qs
 
 # Load your strategy returns here
@@ -313,6 +329,54 @@ print(f'Max Drawdown: {max_drawdown}')
 
 
 
+# --------------------------------------------------------------------------
+# Design Choices
+# --------------------------------------------------------------------------
+
+
+# - Window length for the return series used in the optimization (i.e., the width argument of the OptimizationItemBuilder instance)
+# - Risk aversion parameter
+# - Covariance estimator
+# - Expected return estimator
+# - Constraints (e.g., box constraints, linear constraints)
+# - and many more...
+
+
+
+optimization_item_builders = {
+    'return_series': OptimizationItemBuilder(
+        bibfn=bibfn_return_series,
+        width=256 * 1,
+    ),
+}
+bs = BacktestService(
+    data=data,
+    optimization=optimization,
+    optimization_item_builders=optimization_item_builders,
+    rebdates=rebdates,
+)
+bt_mv_1y = Backtest()
+bt_mv_1y.run(bs=bs)
+
+
+
+sim_mv_1y = bt_mv_1y.strategy.simulate(
+    return_series=return_series,
+    fc=fixed_costs,
+    vc=variable_costs,
+)
+
+sim = pd.concat({
+    'bm': bs.data['bm_series'],
+    'mv': sim_mv,
+    'mv_1y': sim_mv_1y,
+}, axis = 1).dropna()
+sim.columns = sim.columns.get_level_values(0)
+
+
+(1 + sim).cumprod().plot(title='Cumulative Performance', figsize= (10, 6))
+# np.log((1 + sim)).cumsum().plot(title='Cumulative Performance', figsize=(10, 6))
+# np.log((1 + sim).cumprod()).plot(title='Cumulative Performance', figsize=(10, 6))
 
 
 

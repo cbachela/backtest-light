@@ -9,6 +9,7 @@
 # --------------------------------------------------------------------------
 
 
+
 # Standard library imports
 from typing import Optional
 import pickle
@@ -19,12 +20,16 @@ import numpy as np
 import pandas as pd
 
 # Local modules imports
-from btlight.backtesting.portfolio import Portfolio
-from btlight.backtesting.strategy import Strategy
-from btlight.backtesting.service import BacktestService
+from backtesting.portfolio import Portfolio
+from backtesting.strategy import Strategy
+from backtesting.backtest_service import BacktestService
+
+
+
 
 
 class Backtest:
+
     """
     A class to perform backtesting of a trading strategy.
 
@@ -34,7 +39,6 @@ class Backtest:
         Contains the list of Portfolio objects constructed during the backtesting,
         i.e, one for each rebalancing date.
     """
-
     def __init__(self):
         self._strategy = Strategy([])
 
@@ -54,35 +58,45 @@ class Backtest:
             The backtest service object containing settings and optimization data.
         """
 
-        for rebalancing_date in bs.settings["rebdates"]:
+        for rebalancing_date in bs.settings['rebdates']:
 
-            if not bs.settings.get("quiet"):
-                print(f"Rebalancing date: {rebalancing_date}")
+            if not bs.settings.get('quiet'):
+                print(f'Rebalancing date: {rebalancing_date}')
 
             # Prepare the rebalancing, i.e., the optimization problem
-            bs.prepare_rebalancing(rebalancing_date=rebalancing_date, strategy=self.strategy)
+            bs.prepare_rebalancing(
+                rebalancing_date=rebalancing_date,
+                strategy=self.strategy
+            )
 
             # Solve the optimization problem
             try:
-                bs.optimization.set_objective(optimization_data=bs.optimization_data)
+                bs.optimization.set_objective(
+                    optimization_data=bs.optimization_data
+                )
                 bs.optimization.solve()
             except Exception as error:
                 raise RuntimeError(error)
 
             # Extract the portfolio weights from the optimization results,
             # create a Portfolio object and append it to the strategy
-            weights = bs.optimization.results["weights"]
-            portfolio = Portfolio(rebalancing_date=rebalancing_date, weights=weights)
+            portfolio = Portfolio(
+                rebalancing_date=rebalancing_date,
+                weights=bs.optimization.results['weights'],
+            )
             self.strategy.portfolios.append(portfolio)
 
         return None
 
-    def save(self, filename: str, path: Optional[str] = None) -> None:
+    def save(self,
+             filename: str,
+             path: Optional[str] = None) -> None:
         try:
             if path is not None and filename is not None:
-                filename = os.path.join(path, filename)  # // alternatively, use pathlib package
+                filename = os.path.join(path, filename)   #// alternatively, use pathlib package
             with open(filename, "wb") as f:
                 pickle.dump(self, f, protocol=pickle.HIGHEST_PROTOCOL)
+            print(f"Backtest object saved successfully to {filename}")
         except Exception as ex:
             print("Error during pickling object:", ex)
 
