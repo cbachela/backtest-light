@@ -3,6 +3,9 @@ import joblib
 import pandas as pd
 from btlight.ml.naming.model_name import resolve_target_name
 from btlight.ml.io.model_io import model_path
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def train_func(model, X, y, train_idx, target_asset=None):
@@ -63,6 +66,7 @@ def train_func(model, X, y, train_idx, target_asset=None):
     y_pred = pd.DataFrame(model.predict(X=X_train), index=X_train.index, columns=["y_pred"])
 
     joblib.dump(model, path)
+    logger.info("Model trained and saved at %s.", path)
 
 
 def test_func(X, y, train_idx, test_idx, target_asset=None):
@@ -122,5 +126,7 @@ def test_func(X, y, train_idx, test_idx, target_asset=None):
     # also produce in-sample predictions on the training set
     X_train = X.loc[train_idx]
     y_pred_train = pd.DataFrame(model.predict(X=X_train), index=X_train.index, columns=["y_pred"])
+
+    logger.info("Model tested on test set %s to %s. Predictions generated for test and training sets.", test_idx[0], test_idx[-1])
 
     return (resolved_target, y_pred_test, y_pred_train)

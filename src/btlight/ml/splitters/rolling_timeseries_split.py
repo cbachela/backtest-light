@@ -466,6 +466,12 @@ class PanelTimeSeriesSplit(BaseCrossValidator):
 
             yield np.where(train_mask)[0], np.where(val_mask)[0]
 
+    def show(self, X):
+        for train_idx, val_idx in self.split(X=X):
+            print("TRAIN:", X.index[train_idx].get_level_values(self.date_level).unique())
+            print("VAL:", X.index[val_idx].get_level_values(self.date_level).unique())
+            print("-" * 20)
+
     def get_n_splits(self, X=None, y=None, groups=None):
         return self.n_splits
 

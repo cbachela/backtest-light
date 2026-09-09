@@ -1,15 +1,19 @@
+import sys
+sys.path.insert(0, '/Users/matej_ofenhgz2/Desktop/MasterThesis_repository/backtest-light/src')
+
+
 ################################
 # Control Params
 ################################
 
-label_recompute = False
+label_recompute = True
 feature_recompute = False
 
 ################################
 # Logging
 ################################
 import logging
-
+ 
 # simple logging for this experiment script
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -22,17 +26,16 @@ from pathlib import Path
 import pandas as pd
 
 # raw input
-repo_root = Path(__file__).resolve().parents[2]
-data_path = repo_root / "data" / "DMEXLME" / "20251231"
-signal_path = data_path / "signals.parquet"
-return_series_path = data_path / "return_series.parquet"
+data_path = Path("/Users/matej_ofenhgz2/Desktop/MasterThesis_repository/backtest-light/data")
+signal_path = data_path / "signals.csv"
+return_series_path = data_path / "return_series.txt"
 
 # generated input to training
 feature_path = str(data_path / "features.parquet")
 label_path = str(data_path / "labels.parquet")
 
 # generated predictions
-prediction_path = str(data_path / "ml_signal.parquet")
+prediction_path =str(data_path / "ml_signal.parquet")
 shap_path = str(data_path / "shap_values.parquet")
 
 
@@ -43,7 +46,7 @@ import pandas as pd
 from btlight.ml.utils.format import check_if_multiindex, ensure_datetime_index
 
 # only True for testing purposes to make the code fast
-downsample = True
+downsample = False
 
 if Path(feature_path).exists() and not feature_recompute:
 
@@ -52,11 +55,17 @@ if Path(feature_path).exists() and not feature_recompute:
 else:
 
     # load signals
-    X = pd.read_parquet(signal_path)
+    X = pd.read_csv(signal_path)
+
+    X = X.rename(columns={"date": "DATE"})
+    X = X.set_index(["DATE", "ID"])
 
     # inconsistent naming in signal service with lowercase forces us to
     # todo: this shouldb't happen blindly
-    X.index.names = ["DATE", "ID"]
+    # X.index.names = ["DATE", "ID"]
+    print(X.columns.tolist())
+    print(X.head())
+
 
     # check if we have the proper panel format
     check_if_multiindex(X)
@@ -71,10 +80,10 @@ else:
     X = X.select_dtypes(include="number")
 
     # in a first shot allow this drastic feature reduction
-    # selection = ["profitability", "growth_qa", "momentum", "value_sector_stdz", "volatility", "safety", "investment"]
-    # selection = ["profitability", "value"]
-    # X = X[selection]
-
+    #selection = ["profitability", "growth_qa", "momentum", "value_sector_stdz", "volatility", "safety", "investment"]
+    #selection = ["profitability", "value"]
+    #X = X[selection]
+    
     # # we can add more features, below likely redundant:
     # for col in X.columns:
     #     X[f"{col}_rank"] = X.groupby("DATE")[col].rank(pct=True)
@@ -103,6 +112,7 @@ else:
 logger.info(f"Features prepared: X.shape={getattr(X, 'shape', None)}")
 
 
+
 ################################
 # Label Creation
 ################################
@@ -125,9 +135,10 @@ if Path(label_path).exists() and not label_recompute:
 
 else:
     # on s3 we still have multi columns
-    return_series = pd.read_parquet(return_series_path, columns=["tot_return_gross"])
-    # return_series = pd.read_parquet(return_series_path)
-
+    return_series = pd.read_csv(return_series_path, sep = ',', parse_dates= ["DATE"], usecols=["DATE", "ID", "tot_return_gross"])
+    #return_series = pd.read_parquet(return_series_path)
+    return_series = return_series.set_index(["DATE", "ID"])
+    print(return_series.head())
     return_series = return_series.astype(float).squeeze()
 
     # check if we have the proper panel format
@@ -159,17 +170,29 @@ else:
         CrossSectionalPIT,
     )
 
+    # 2. Market return per date = equalweighted 
+    market_ret = y.groupby(level="DATE").transform("mean")
+
+    y_adj = y - market_ret
+
     # label transformation pipeline
     label_pipeline = TransformPipeline(
         [
-            # CrossSectionalZScore(),
-            CrossSectionalWinsorize(lower=0.01, upper=0.99),
-            CrossSectionalPIT(),
+            #CrossSectionalZScore(),
+            CrossSectionalWinsorize(lower=0.01, upper=0.99), 
         ]
     )
 
-    y = label_pipeline.fit_transform(y)
+    y = label_pipeline.fit_transform(y_adj)
     y = y.dropna()
+
+    y = y.groupby(level="DATE").rank(
+    method    = 'first',
+    ascending = True,
+    ).astype(int)
+
+    y = (100 * y / y.groupby(level="DATE").transform("count")).astype(int)
+
 
 logger.info(f"Labels prepared: y.shape={getattr(y, 'shape', None)}")
 
@@ -212,7 +235,6 @@ assert X.index.equals(y.index)
 
 logger.info(f"Aligned X and y: X.shape={X.shape}, y.shape={y.shape}")
 
-
 ################################
 # Define a model / pipeline
 ################################
@@ -223,75 +245,45 @@ from sklearn.linear_model import Ridge
 from sklearn.preprocessing import StandardScaler, PolynomialFeatures
 from sklearn.feature_selection import SelectKBest, f_regression
 from xgboost import XGBRegressor
+from btlight.ml.models.xgb_ranker_wrapper import XGBRankerSklearnWrapper
 from scipy.stats import spearmanr
-from sklearn.metrics import make_scorer
+from sklearn.metrics import make_scorer, ndcg_score
 from btlight.ml.splitters.rolling_timeseries_split import PanelTimeSeriesSplit
 from sklearn.decomposition import PCA
 from btlight.ml.metrics.scoring import ic_score_func
+from btlight.ml.metrics.scoring import ndcg_scorer
 
-
-ic_score = make_scorer(ic_score_func, greater_is_better=True)
 # make custom scorer
+# ic_score = make_scorer(ic_score_func, greater_is_better=True)
+ltr_scorer = make_scorer(ndcg_scorer, greater_is_better=True)
 
-
-# pipline 1
-# pipeline = Pipeline(
-#     [
-#         ("pca", PCA(n_components=0.95)),
-#         (
-#             "regressor",
-#             XGBRegressor(
-#                 objective="reg:squarederror",
-#                 random_state=42,
-#                 n_estimators=400,
-#                 tree_method="hist",
-#             ),
-#         ),
-#     ]
-# )
-
-# param_grid = {
-#     "regressor__max_depth": [3, 5, 8],
-#     "regressor__learning_rate": [0.03, 0.05],
-#     "regressor__subsample": [0.7, 0.9],
-#     "regressor__n_estimators": [10, 50, 200, 400],
-# }
-
-# pipeline 2
-pipeline = Pipeline(
-    [
-        # not really needed since our input is very tamed
-        # ("scaler", StandardScaler()),
-        # forcing some overfitting here to test pipeline
-        # ("poly", PolynomialFeatures(degree=2, include_bias=False)),
-        # simple regressor
-        # ("pca", PCA(n_components=0.95)),
-        ("regressor", Ridge(random_state=42))
-    ]
-)
-
+# Pipeline with XGBRanker — analog to Ridge pipeline
+# No preprocessing needed (signals already normalised)
+pipeline = Pipeline([
+    ("ranker", XGBRankerSklearnWrapper(
+        objective   = "rank:ndcg",
+    ))
+])
+ 
+# Hyperparameter grid — analog to Ridge param_grid
 param_grid = {
-    # "regressor__alpha": [1e-5, 1e-4, 0.001, 0.1, 1.0, 10.0, 100.0, 1e3, 1e4, 1e5, 1e6, 1e7]
-    "regressor__alpha": [0.1, 1.0, 10.0, 100.0]
+    "ranker__max_depth"      : [3, 5],
+    "ranker__learning_rate"  : [0.01, 0.1],
+    "ranker__n_estimators"   : [50, 150, 300],
+    "ranker__min_child_weight": [5, 15],
+    "ranker__subsample"      : [0.7, 0.9],
 }
 
 
-# add validation sets for hyperparameter tuning
-# tscv = TimeSeriesSplit(n_splits=2)# This will split without date consideration
-# kf = KFold(n_splits=5)
-# is actually okay in our setup, but nicer if it is different. I also think
-# we should have sector splitter etc.
-
-# grid search object
+# GridSearchCV — analog to Ridge
+# PanelTimeSeriesSplit respects the temporal structure of panel data
 grid_search = GridSearchCV(
     pipeline,
     param_grid,
-    # cv=KFold(n_splits=5),
-    cv=PanelTimeSeriesSplit(n_splits=3, date_level="DATE"),
-    n_jobs=-1,
-    # scoring=ic_score,
-    scoring="neg_mean_squared_error",
-    refit=True,  # likely default, will refit on entire sample once hyper param is found
+    cv      = PanelTimeSeriesSplit(n_splits=3, date_level="DATE"),
+    scoring = ltr_scorer,
+    n_jobs  = -1,
+    refit   = True,
 )
 
 ####################################################
@@ -301,18 +293,24 @@ grid_search = GridSearchCV(
 # this can only be done if X and y are aligned
 time_grid = X.index.get_level_values("DATE").unique().sort_values()
 
-
 ####################################################
 # Train and Test Rolling Split
 ####################################################
 from btlight.ml.splitters.rolling_timeseries_split import ObservationGridRollingSplit
+from btlight.ml.splitters.rolling_timeseries_split import ExpandingWindowSplit
+
+#rolling_splitter = ExpandingWindowSplit(
+ #   min_train_obs  = 36,   # mind. 3 Jahre bevor erster Test-Split
+  #  retrain_stride = 1,    # jeden Monat neu testen
+#)
 
 rolling_splitter = ObservationGridRollingSplit(
-    observation_dates=time_grid,
-    train_window_obs=12 * 2,  # 2 years of training window
-    skip_obs_between_train_test=0,
-    retrain_stride=1,  # retrain every quarter
+    observation_dates           = time_grid,
+    train_window_obs            = 12 * 3,
+    skip_obs_between_train_test = 0,
+    retrain_stride              = 1,
 )
+
 
 rolling_splitter.print_splits(X=X)
 
@@ -325,28 +323,27 @@ study = False
 
 if study:
     from sklearn.base import clone
-
     splits = rolling_splitter.split(X=X)
-
+    
     # get training info of first split
     # first split
     train_idx, test_idx = next(splits)
     # this is how you move to the next split
     train_idx, test_idx = next(splits)
-
+    
     X_train = X.loc[train_idx]
     y_train = y.loc[train_idx]
-
+    
     # clone model and fit
     model = clone(grid_search)
     model.fit(X=X_train, y=y_train)
-
+    
     # results from GridSearchCV
     results = model.cv_results_
-
+    
     # Find all hyperparameter columns
     param_cols = [c for c in results.keys() if c.startswith("param_regressor__")]
-
+    
     # extract values for each parameter
     param_data = {}
     for c in param_cols:
@@ -354,60 +351,56 @@ if study:
         try:
             values = values.astype(float)
         except:
-            pass
+            pass  
         param_data[c.replace("param_regressor__", "")] = values
-
+    
     # add the test score (negative mse, higher is better)
     param_data["mean_test_score"] = results["mean_test_score"]
     param_data["std_test_score"] = results["std_test_score"]
     # ad the mse (sign flip, note this will need chagnes if you change the score func.)
     param_data["mean_test_mse"] = -results["mean_test_score"]
-
+    
     # Make DataFrame
     df = pd.DataFrame(param_data)
-
+    
     # sorting
-    param_name = "alpha"  # or alpha or what is suitable
+    param_name = "alpha" # or alpha or what is suitable
     df = df.sort_values(by=[param_name], ascending=False)
-    # df = df.sort_values(by=["alpha"], ascending=False)
-
+    #df = df.sort_values(by=["alpha"], ascending=False)
+    
+    
     # simple Hyperparam plot for Ridge Regression
     import matplotlib.pyplot as plt
-
-    plt.figure(figsize=(8, 5))
-    plt.semilogx(df[param_name], df["mean_test_mse"], marker="o", linestyle="-")
+    plt.figure(figsize=(8,5))
+    plt.semilogx(df[param_name], df['mean_test_mse'], marker='o', linestyle='-')
     plt.xlabel("Alpha (log scale)")
     plt.ylabel("Mean CV MSE")
     plt.title("Ridge: CV Loss vs Alpha")
     plt.grid(True, which="both", linestyle="--", linewidth=0.5)
     plt.show()
-
+    
     # why is the standard deviation so high?
-    plt.figure(figsize=(8, 5))
-
+    plt.figure(figsize=(8,5))
+    
     # Semilog-x plot with shaded std region
-    plt.semilogx(
-        df[param_name], df["mean_test_mse"], marker="o", linestyle="-", label="Mean CV MSE"
-    )
+    plt.semilogx(df[param_name], df['mean_test_mse'], marker='o', linestyle='-', label='Mean CV MSE')
     plt.fill_between(
         df[param_name],
-        df["mean_test_mse"] - df["std_test_score"],
-        df["mean_test_mse"] + df["std_test_score"],
-        alpha=0.2,
+        df['mean_test_mse'] - df['std_test_score'],
+        df['mean_test_mse'] + df['std_test_score'],
+        alpha=0.2
     )
-
+    
     plt.xlabel("Alpha (log scale)")
     plt.ylabel("Mean CV MSE")
     plt.title("Ridge: CV Loss vs Alpha")
     plt.grid(True, which="both", linestyle="--", linewidth=0.5)
     plt.show()
 
-    print(
-        pd.Series(
-            model.best_estimator_.named_steps["regressor"].coef_, index=X.columns
-        ).sort_values()
-    )
 
+    print(pd.Series(model.best_estimator_.named_steps["regressor"].coef_, index=X.columns).sort_values())
+    
+    
 
 ####################################################
 # Train (will persist the models to disk)
@@ -493,6 +486,7 @@ print("Predictions Done")
 logger.info(f"Predictions written to {prediction_path}")
 
 
+
 ####################################################
 # Shap Values Computation
 ####################################################
@@ -537,8 +531,8 @@ df_all_shap.to_parquet(shap_path)
 
 print("Shap Values Computed")
 logger.info(f"Saved SHAP values to {shap_path}")
-
-
+ 
+ 
 ####################################################
 # Shap Value Analysis
 ####################################################
@@ -565,6 +559,7 @@ plt.show()
 importance.mean().sort_values(ascending=False)
 
 
+
 # inspecting single split / model
 # filter one split
 split_id = 0
@@ -579,3 +574,97 @@ shap_exp = shap.Explanation(
 )
 
 shap.plots.heatmap(shap_exp[:1000])
+
+
+####################################################
+# Feature Importance
+####################################################
+from btlight.ml.io.model_io import model_path
+import xgboost as xgb
+ 
+last_split     = list(rolling_splitter.split(X=X))[-1]
+last_train_idx = last_split[0]
+last_path      = model_path(X, y, last_train_idx, target_asset=None)
+last_model     = joblib.load(last_path)
+ 
+# Extract XGBRanker from pipeline
+ranker = last_model.best_estimator_.named_steps["ranker"]
+ 
+xgb.plot_importance(
+    ranker.get_booster(),
+    importance_type  = 'gain',
+    max_num_features = 20,
+    title            = 'Feature Importance (gain)',
+)
+plt.tight_layout()
+plt.savefig(str(data_path / 'feature_importance_ltr.png'), dpi=150)
+plt.show()
+
+
+
+# cd /Users/matej_ofenhgz2/Desktop/MasterThesis_repository/backtest-light
+# uv run python examples/ml/xsection_ranker.py
+
+
+####################################################
+# NDCG Evaluation — Ist das Modell gut?
+####################################################
+from sklearn.metrics import ndcg_score
+import numpy as np
+from btlight.ml.metrics.scoring import ndcg_scorer
+
+print("\n" + "="*50)
+print("NDCG EVALUATION")
+print("="*50)
+
+ndcg_scores = []
+
+for train_idx, test_idx in rolling_splitter.split(X=X):
+
+    # Predictions für diesen Split
+    X_test  = X.loc[test_idx]
+    y_test  = y.loc[test_idx]
+
+    # Modell laden
+    from btlight.ml.io.model_io import model_path
+    path  = model_path(X, y, train_idx, target_asset=None)
+    model = joblib.load(path)
+
+    y_pred = model.predict(X_test)
+    score  = ndcg_scorer(y_true=y.loc[test_idx], y_pred=y_pred)
+    ndcg_scores.append(score)
+
+# Resultate ausgeben
+ndcg_series = pd.Series(ndcg_scores)
+print(f"Durchschnittlicher NDCG:  {ndcg_series.mean():.4f}")
+print(f"Bester NDCG:              {ndcg_series.max():.4f}")
+print(f"Schlechtester NDCG:       {ndcg_series.min():.4f}")
+print(f"Std NDCG:                 {ndcg_series.std():.4f}")
+print()
+print("Interpretation:")
+print(f"  NDCG = 0.5 → Zufall")
+print(f"  NDCG = 1.0 → Perfekt")
+print(f"  Dein NDCG  → {ndcg_series.mean():.4f}")
+
+if ndcg_series.mean() > 0.55:
+    print("  → Modell ist besser als Zufall ✅")
+elif ndcg_series.mean() > 0.50:
+    print("  → Modell ist leicht besser als Zufall ⚠️")
+else:
+    print("  → Modell ist nicht besser als Zufall ❌")
+
+# Plot
+ndcg_series.plot(
+    title   = 'NDCG Score über Zeit',
+    figsize = (10, 4),
+    grid    = True,
+)
+plt.axhline(y=0.5, color='r', linestyle='--', label='Zufall (0.5)')
+plt.ylabel('NDCG Score')
+plt.xlabel('Split')
+plt.legend()
+plt.tight_layout()
+plt.savefig(str(data_path / 'ndcg_over_time.png'), dpi=150)
+plt.close()
+
+print(f"\nNDCG Plot gespeichert!")
