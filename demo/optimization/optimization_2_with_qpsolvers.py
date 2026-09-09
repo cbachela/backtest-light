@@ -1,20 +1,18 @@
 ############################################################################
-### CODING EXAMPLES - OPTIMIZATION 1 - USING LIBRARY qpsolvers
+### QPMwP CODING EXAMPLES - OPTIMIZATION 2 - USING LIBRARY QPSOLVERS
 ############################################################################
 
 # --------------------------------------------------------------------------
 # Cyril Bachelard
-# This version:     18.01.2025
+# This version:     26.01.2026
 # First version:    18.01.2025
 # --------------------------------------------------------------------------
 
 
-# pip install pandas
-# pip install qpsolvers[open_source_solvers]
 
 
-# .venv\Scripts\activate
-# pip install -r requirements.txt
+# Install qpsolvers
+# uv pip install qpsolvers[open_source_solvers]     # If this fails, try: uv pip install qpsolvers, then install solvers separately (e.g. uv pip install cvxopt)
 
 
 
@@ -25,8 +23,8 @@ import os
 # Third party imports
 import numpy as np
 import pandas as pd
-import qpsolvers
 import matplotlib.pyplot as plt
+import qpsolvers
 
 
 
@@ -37,7 +35,7 @@ import matplotlib.pyplot as plt
 # Load data
 # --------------------------------------------------------------------------
 
-# Load msci country indices return series
+# Load msci country index return series
 
 path_to_data = '../data/'
 # N = 24
@@ -48,9 +46,23 @@ df = pd.read_csv(os.path.join(path_to_data, 'msci_country_indices.csv'),
                     parse_dates=True,
                     date_format='%d-%m-%Y')
 series_id = df.columns[0:N]
-X = df[series_id]
+return_series = df[series_id]
 
-X
+# Create 'level' series from return series
+level_series = (1 + return_series).cumprod()
+
+# # Alternatively, compute returns from level series
+# returns = level_series.pct_change(1).dropna()
+
+
+# Visualization
+return_series.plot()
+
+plt.figure(figsize=(10, 4)) 
+# level_series.plot(alpha=1, legend=True)
+np.log(level_series).plot(alpha=1, legend=True)
+plt.grid()
+plt.show()
 
 
 
@@ -70,10 +82,10 @@ scalefactor = 1  # could be set to 252 (trading days) for annualized returns
 ##  mu = X.mean()
 
 ## This is correct:
-mu = np.exp(np.log(1 + X).mean(axis=0) * scalefactor) - 1
+mu = np.exp(np.log(1 + return_series).mean(axis=0) * scalefactor) - 1
 
 # Covariance matrix
-covmat = X.cov() * scalefactor
+covmat = return_series.cov() * scalefactor
 
 
 mu, covmat
@@ -107,9 +119,9 @@ A, b
 # LInear inequality constraints
 G = np.zeros((2, N))
 G[0, 0:5] = 1
-G[1, 6:10] = 1
-h = np.array([1, 1])
+G[1, 5:10] = 1
 # h = np.array([0.5, 0.5])
+h = np.array([1, 1])
 
 G, h
 
@@ -134,7 +146,6 @@ P = covmat * risk_aversion
 # Define problem and solve
 problem = qpsolvers.Problem(
     P = P.to_numpy(),
-    # q = mu.to_numpy(),
     q = mu.to_numpy() * -1,   # don't forget to multiply by -1 since we are minimizing
     G = G,
     h = h,
@@ -155,21 +166,23 @@ solution = qpsolvers.solve_problem(
 # Inspect the solution object
 solution
 dir(solution)
-solution.obj
-solution.found
-solution.is_optimal
-solution.primal_residual
-solution.dual_residual
-solution.duality_gap
 
 solution.x
+
+solution.found
+solution.obj
+solution.primal_residual()
+solution.dual_residual()
+solution.duality_gap()
+
 
 
 
 # Extract weights
-weights_mv = {col: float(solution.x[i]) for i, col in enumerate(X.columns)}
+weights_mv = {col: float(solution.x[i]) for i, col in enumerate(return_series.columns)}
 weights_mv
 weights_mv = pd.Series(weights_mv)
+
 weights_mv.plot(kind='bar')
 
 
@@ -200,7 +213,7 @@ solution = qpsolvers.solve_problem(
 )
 
 # Extract weights
-weights_minv = {col: float(solution.x[i]) for i, col in enumerate(X.columns)}
+weights_minv = {col: float(solution.x[i]) for i, col in enumerate(return_series.columns)}
 weights_minv = pd.Series(weights_minv)
 
 weights_minv.plot(kind='bar')
@@ -247,7 +260,7 @@ for risk_aversion in risk_aversion_grid:
     )
 
     # Extract and store the weights
-    weights = {col: float(solution.x[i]) for i, col in enumerate(X.columns)}
+    weights = {col: float(solution.x[i]) for i, col in enumerate(return_series.columns)}
     weights_dict[risk_aversion] = pd.Series(weights)
 
 # Convert the dict to a DataFrame
@@ -261,29 +274,36 @@ weights_df
 
 # Plot the efficient frontier
 
-portf_vola = np.diag(weights_df @ covmat @ weights_df.T)
+portf_vola = np.sqrt(np.diag(weights_df @ covmat @ weights_df.T))
+# Alternatively:
+# portf_vola = weights_df.apply(lambda x: np.sqrt(x @ covmat @ x), axis=1)
 portf_return = weights_df @ mu
 
 plt.scatter(portf_vola, portf_return, c=portf_return / portf_vola, cmap='viridis')
 
 
-
+# Find the risk aversion parameter that maximizes the Sharpe ratio
+sr = portf_return / portf_vola
+idx_max = sr.idxmax()
+sr.plot()
+plt.axvline(idx_max, color='red', linestyle='--', label=f'Max SR for risk aversion {idx_max:.2f}')
+plt.legend()
 
 
 # Plot the historical returns of the portfolios on the efficient frontier
 
-sim = X @ weights_df.T
+sim = return_series @ weights_df.T
 
 np.log((1 + sim).cumprod()).plot(legend=False, alpha=0.2, cmap='viridis')
 
 # Add the mean-variance optimal portfolio
-np.log((1 + X @ weights_mv).cumprod()).plot(label='Mean-Variance Portfolio')
+np.log((1 + return_series @ weights_mv).cumprod()).plot(label='Mean-Variance Portfolio')
 
 # Add the equally weighted portfolio
-np.log((1 + X.mean(axis=1)).cumprod()).plot(label='Equally Weighted Portfolio')
+np.log((1 + return_series.mean(axis=1)).cumprod()).plot(label='Equally Weighted Portfolio')
 
 # Add the minimum-variance portfolio
-np.log((1 + X @ weights_minv).cumprod()).plot(label='Minimum-Variance Portfolio')
+np.log((1 + return_series @ weights_minv).cumprod()).plot(label='Minimum-Variance Portfolio')
 
 
 
@@ -294,7 +314,6 @@ np.log((1 + X @ weights_minv).cumprod()).plot(label='Minimum-Variance Portfolio'
 
 # --------------------------------------------------------------------------
 # Solve for the minimum tracking error portfolio, setup as a Least Squares problem
-# (Lecture 3)
 # --------------------------------------------------------------------------
 
 # See: https://qpsolvers.github.io/qpsolvers/least-squares.html
@@ -310,14 +329,14 @@ np.log((1 + X @ weights_minv).cumprod()).plot(label='Minimum-Variance Portfolio'
 #                 date_format='%d-%m-%Y')
 
 # Create an equally weighted benchmark series
-y = X.mean(axis=1)
+y = return_series.mean(axis=1)
 y
 
 
 # Coefficients of the least squares problem
 
-P = 2 * (X.T @ X)
-q = -2 * X.T @ y
+P = 2 * (return_series.T @ return_series)
+q = -2 * return_series.T @ y
 constant = y.T @ y
 
 # Define problem and solve
@@ -340,15 +359,15 @@ solution = qpsolvers.solve_problem(
 )
 
 # Extract weights
-weights_ls = pd.Series(solution.x, X.columns)
+weights_ls = pd.Series(solution.x, return_series.columns)
 weights_ls.plot(kind='bar')
 
 
 
 # Inspect portfolio simulations
 
-sim_mv = (X @ weights_mv).rename('Mean-Variance Portfolio')
-sim_ls = (X @ weights_ls).rename('Min Tracking Error Portfolio (by Least Squares)')
+sim_mv = (return_series @ weights_mv).rename('Mean-Variance Portfolio')
+sim_ls = (return_series @ weights_ls).rename('Min Tracking Error Portfolio (by Least Squares)')
 
 sim = pd.concat({
     'benchmark': y,
@@ -358,4 +377,6 @@ sim = pd.concat({
 sim
 
 np.log((1 + sim).cumprod()).plot()
+
+
 

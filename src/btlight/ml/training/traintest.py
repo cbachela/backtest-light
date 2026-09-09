@@ -1,14 +1,14 @@
 import os
 import joblib
 import pandas as pd
-from btlight.ml.naming.model_name import resolve_target_name
-from btlight.ml.io.model_io import model_path
+from ml.naming.model_name import resolve_target_name
+from ml.io.model_io import model_path
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-def train_func(model, X, y, train_idx, target_asset=None):
+def train_func(model, X, y, train_idx, target_asset=None, force_retrain=False):
     """
     Trains a model on the specified target asset and saves the trained model to disk.
 
@@ -26,14 +26,8 @@ def train_func(model, X, y, train_idx, target_asset=None):
         The asset (column) in `y` that the model will predict. If `y` is a
         `pd.Series`, this parameter is optional; when omitted the function will
         use `y.name` or the fallback string `'target'` as the asset name.
-    model : object
-        The machine learning model to be trained. It should have a `.fit()` method and a `.predict()` method.
-    X : pd.DataFrame
-        A DataFrame containing the features (independent variables) for training the model.
-    y : pd.DataFrame
-        A DataFrame containing the target labels (dependent variables) for training. The target asset should be a column in `y`.
-    train_idx : pd.Index
-        The index corresponding to the training period. It defines which rows of `X` and `y` will be used for training.
+    force_retrain : bool
+        If True, forces retraining of the model even if a trained model already exists on disk
 
     Returns:
     -------
@@ -47,7 +41,7 @@ def train_func(model, X, y, train_idx, target_asset=None):
     path = model_path(X, y, train_idx, target_asset)
 
     # load from disk if exists already
-    if os.path.exists(path):
+    if os.path.exists(path) and not force_retrain:
         return
 
     # restrict features and labels

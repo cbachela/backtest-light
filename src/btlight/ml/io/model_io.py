@@ -1,7 +1,7 @@
 import pandas as pd
 import tempfile
 from pathlib import Path
-from btlight.ml.naming.model_name import (
+from ml.naming.model_name import (
     resolve_start_end_dates_from_index,
     resolve_target_name,
 )

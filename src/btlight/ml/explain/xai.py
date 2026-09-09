@@ -2,7 +2,7 @@ import joblib
 import shap
 from pathlib import Path
 from typing import Optional
-from btlight.ml.io.model_io import model_path, shap_values_path
+from ml.io.model_io import model_path, shap_values_path
 import logging
 
 logger = logging.getLogger(__name__)

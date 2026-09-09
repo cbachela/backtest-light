@@ -16,16 +16,18 @@ from typing import Optional
 import pandas as pd
 
 
+
+
 class OptimizationData(dict):
-    """
-    A class to handle optimization data,
+    '''
+    A class to handle optimization data, 
     allowing for alignment of dates and lagging of variables.
 
     Parameters:
     align (bool): Whether to align dates across all variables.
     lags (dict): Dictionary specifying the lag for each variable.
     kwargs: Additional keyword arguments to initialize the dictionary.
-    """
+    '''
 
     def __init__(self, align=True, lags={}, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -36,9 +38,9 @@ class OptimizationData(dict):
         if align:
             self.align_dates()
 
-    def intersecting_dates(
-        self, variable_names: Optional[list[str]] = None, dropna: bool = True
-    ) -> pd.DatetimeIndex:
+    def intersecting_dates(self,
+                           variable_names: Optional[list[str]] = None,
+                           dropna: bool = True) -> pd.DatetimeIndex:
         if variable_names is None:
             variable_names = list(self.keys())
         if dropna:
@@ -49,10 +51,14 @@ class OptimizationData(dict):
             index = index.intersection(self.get(variable_name).index)
         return index
 
-    def align_dates(self, variable_names: Optional[list[str]] = None, dropna: bool = True) -> None:
+    def align_dates(self,
+                    variable_names: Optional[list[str]] = None,
+                    dropna: bool = True) -> None:
         if variable_names is None:
             variable_names = self.keys()
-        index = self.intersecting_dates(variable_names=list(variable_names), dropna=dropna)
+        index = self.intersecting_dates(
+            variable_names=list(variable_names), dropna=dropna
+        )
         for key in variable_names:
             self[key] = self[key].loc[index]
         return None
