@@ -32,7 +32,7 @@ feature_path = str(data_path / "features.parquet")
 label_path = str(data_path / "labels.parquet")
 
 # generated predictions
-prediction_path =str(data_path / "ml_signal.parquet")
+prediction_path = str(data_path / "ml_signal.parquet")
 shap_path = str(data_path / "shap_values.parquet")
 
 
@@ -71,10 +71,10 @@ else:
     X = X.select_dtypes(include="number")
 
     # in a first shot allow this drastic feature reduction
-    #selection = ["profitability", "growth_qa", "momentum", "value_sector_stdz", "volatility", "safety", "investment"]
-    #selection = ["profitability", "value"]
-    #X = X[selection]
-    
+    # selection = ["profitability", "growth_qa", "momentum", "value_sector_stdz", "volatility", "safety", "investment"]
+    # selection = ["profitability", "value"]
+    # X = X[selection]
+
     # # we can add more features, below likely redundant:
     # for col in X.columns:
     #     X[f"{col}_rank"] = X.groupby("DATE")[col].rank(pct=True)
@@ -103,7 +103,6 @@ else:
 logger.info(f"Features prepared: X.shape={getattr(X, 'shape', None)}")
 
 
-
 ################################
 # Label Creation
 ################################
@@ -126,9 +125,9 @@ if Path(label_path).exists() and not label_recompute:
 
 else:
     # on s3 we still have multi columns
-    return_series = pd.read_parquet(return_series_path, columns=['tot_return_gross'])
-    #return_series = pd.read_parquet(return_series_path)
-    
+    return_series = pd.read_parquet(return_series_path, columns=["tot_return_gross"])
+    # return_series = pd.read_parquet(return_series_path)
+
     return_series = return_series.astype(float).squeeze()
 
     # check if we have the proper panel format
@@ -163,10 +162,9 @@ else:
     # label transformation pipeline
     label_pipeline = TransformPipeline(
         [
-            #CrossSectionalZScore(),
+            # CrossSectionalZScore(),
             CrossSectionalWinsorize(lower=0.01, upper=0.99),
             CrossSectionalPIT(),
-            
         ]
     )
 
@@ -236,7 +234,7 @@ ic_score = make_scorer(ic_score_func, greater_is_better=True)
 # make custom scorer
 
 
-#pipline 1
+# pipline 1
 # pipeline = Pipeline(
 #     [
 #         ("pca", PCA(n_components=0.95)),
@@ -263,26 +261,24 @@ ic_score = make_scorer(ic_score_func, greater_is_better=True)
 pipeline = Pipeline(
     [
         # not really needed since our input is very tamed
-        #("scaler", StandardScaler()),
-
+        # ("scaler", StandardScaler()),
         # forcing some overfitting here to test pipeline
-        #("poly", PolynomialFeatures(degree=2, include_bias=False)),
-
+        # ("poly", PolynomialFeatures(degree=2, include_bias=False)),
         # simple regressor
-        #("pca", PCA(n_components=0.95)),
+        # ("pca", PCA(n_components=0.95)),
         ("regressor", Ridge(random_state=42))
     ]
 )
 
 param_grid = {
-    #"regressor__alpha": [1e-5, 1e-4, 0.001, 0.1, 1.0, 10.0, 100.0, 1e3, 1e4, 1e5, 1e6, 1e7]  
-    "regressor__alpha": [0.1, 1.0, 10.0, 100.]  
+    # "regressor__alpha": [1e-5, 1e-4, 0.001, 0.1, 1.0, 10.0, 100.0, 1e3, 1e4, 1e5, 1e6, 1e7]
+    "regressor__alpha": [0.1, 1.0, 10.0, 100.0]
 }
 
 
 # add validation sets for hyperparameter tuning
-#tscv = TimeSeriesSplit(n_splits=2)# This will split without date consideration
-#kf = KFold(n_splits=5)
+# tscv = TimeSeriesSplit(n_splits=2)# This will split without date consideration
+# kf = KFold(n_splits=5)
 # is actually okay in our setup, but nicer if it is different. I also think
 # we should have sector splitter etc.
 
@@ -290,12 +286,12 @@ param_grid = {
 grid_search = GridSearchCV(
     pipeline,
     param_grid,
-    #cv=KFold(n_splits=5),
+    # cv=KFold(n_splits=5),
     cv=PanelTimeSeriesSplit(n_splits=3, date_level="DATE"),
     n_jobs=-1,
-    #scoring=ic_score,
+    # scoring=ic_score,
     scoring="neg_mean_squared_error",
-    refit=True, # likely default, will refit on entire sample once hyper param is found
+    refit=True,  # likely default, will refit on entire sample once hyper param is found
 )
 
 ####################################################
@@ -313,9 +309,9 @@ from btlight.ml.splitters.rolling_timeseries_split import ObservationGridRolling
 
 rolling_splitter = ObservationGridRollingSplit(
     observation_dates=time_grid,
-    train_window_obs=12*2, # 2 years of training window
-    skip_obs_between_train_test=0, 
-    retrain_stride=1, # retrain every quarter
+    train_window_obs=12 * 2,  # 2 years of training window
+    skip_obs_between_train_test=0,
+    retrain_stride=1,  # retrain every quarter
 )
 
 rolling_splitter.print_splits(X=X)
@@ -329,27 +325,28 @@ study = False
 
 if study:
     from sklearn.base import clone
+
     splits = rolling_splitter.split(X=X)
-    
+
     # get training info of first split
     # first split
     train_idx, test_idx = next(splits)
     # this is how you move to the next split
     train_idx, test_idx = next(splits)
-    
+
     X_train = X.loc[train_idx]
     y_train = y.loc[train_idx]
-    
+
     # clone model and fit
     model = clone(grid_search)
     model.fit(X=X_train, y=y_train)
-    
+
     # results from GridSearchCV
     results = model.cv_results_
-    
+
     # Find all hyperparameter columns
     param_cols = [c for c in results.keys() if c.startswith("param_regressor__")]
-    
+
     # extract values for each parameter
     param_data = {}
     for c in param_cols:
@@ -357,56 +354,60 @@ if study:
         try:
             values = values.astype(float)
         except:
-            pass  
+            pass
         param_data[c.replace("param_regressor__", "")] = values
-    
+
     # add the test score (negative mse, higher is better)
     param_data["mean_test_score"] = results["mean_test_score"]
     param_data["std_test_score"] = results["std_test_score"]
     # ad the mse (sign flip, note this will need chagnes if you change the score func.)
     param_data["mean_test_mse"] = -results["mean_test_score"]
-    
+
     # Make DataFrame
     df = pd.DataFrame(param_data)
-    
+
     # sorting
-    param_name = "alpha" # or alpha or what is suitable
+    param_name = "alpha"  # or alpha or what is suitable
     df = df.sort_values(by=[param_name], ascending=False)
-    #df = df.sort_values(by=["alpha"], ascending=False)
-    
-    
+    # df = df.sort_values(by=["alpha"], ascending=False)
+
     # simple Hyperparam plot for Ridge Regression
     import matplotlib.pyplot as plt
-    plt.figure(figsize=(8,5))
-    plt.semilogx(df[param_name], df['mean_test_mse'], marker='o', linestyle='-')
+
+    plt.figure(figsize=(8, 5))
+    plt.semilogx(df[param_name], df["mean_test_mse"], marker="o", linestyle="-")
     plt.xlabel("Alpha (log scale)")
     plt.ylabel("Mean CV MSE")
     plt.title("Ridge: CV Loss vs Alpha")
     plt.grid(True, which="both", linestyle="--", linewidth=0.5)
     plt.show()
-    
+
     # why is the standard deviation so high?
-    plt.figure(figsize=(8,5))
-    
+    plt.figure(figsize=(8, 5))
+
     # Semilog-x plot with shaded std region
-    plt.semilogx(df[param_name], df['mean_test_mse'], marker='o', linestyle='-', label='Mean CV MSE')
+    plt.semilogx(
+        df[param_name], df["mean_test_mse"], marker="o", linestyle="-", label="Mean CV MSE"
+    )
     plt.fill_between(
         df[param_name],
-        df['mean_test_mse'] - df['std_test_score'],
-        df['mean_test_mse'] + df['std_test_score'],
-        alpha=0.2
+        df["mean_test_mse"] - df["std_test_score"],
+        df["mean_test_mse"] + df["std_test_score"],
+        alpha=0.2,
     )
-    
+
     plt.xlabel("Alpha (log scale)")
     plt.ylabel("Mean CV MSE")
     plt.title("Ridge: CV Loss vs Alpha")
     plt.grid(True, which="both", linestyle="--", linewidth=0.5)
     plt.show()
 
+    print(
+        pd.Series(
+            model.best_estimator_.named_steps["regressor"].coef_, index=X.columns
+        ).sort_values()
+    )
 
-    print(pd.Series(model.best_estimator_.named_steps["regressor"].coef_, index=X.columns).sort_values())
-    
-    
 
 ####################################################
 # Train (will persist the models to disk)
@@ -492,7 +493,6 @@ print("Predictions Done")
 logger.info(f"Predictions written to {prediction_path}")
 
 
-
 ####################################################
 # Shap Values Computation
 ####################################################
@@ -565,7 +565,6 @@ plt.show()
 importance.mean().sort_values(ascending=False)
 
 
-
 # inspecting single split / model
 # filter one split
 split_id = 0
@@ -580,4 +579,3 @@ shap_exp = shap.Explanation(
 )
 
 shap.plots.heatmap(shap_exp[:1000])
-

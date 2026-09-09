@@ -169,3 +169,8 @@ cython_debug/
 # data files
 *.parquet
 *.csv
+
+# Excalidraw
+*.excalidraw
+*.excalidraw.png
+*.excalidraw.svg
