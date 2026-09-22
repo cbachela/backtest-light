@@ -431,6 +431,107 @@ class MinVariance(Optimization):
 
 
 
+class MaxSharpe(Optimization):
+
+    def __init__(self,
+                 constraints: Optional[Constraints] = None,
+                 covariance: Optional[Covariance] = None,
+                 expected_return: Optional[ExpectedReturn] = None,
+                 max_iter: int = 10,
+                 tol: float = 1e-8,
+                 **kwargs) -> None:
+        super().__init__(
+            constraints=constraints,
+            covariance=covariance,
+            expected_return=expected_return,
+            max_iter=max_iter,
+            tol=tol,
+            **kwargs,
+        )
+        self.covariance = Covariance() if covariance is None else covariance
+        self.expected_return = ExpectedReturn() if expected_return is None else expected_return
+
+    def set_objective(self, optimization_data: OptimizationData) -> None:
+
+        X = optimization_data['return_series']
+
+        # Estimate and cache mu and Sigma once for this rebalance window.
+        # solve() only needs to update lambda on top of these inputs.
+        self._covmat = np.asarray(
+            self.covariance.estimate(X=X, inplace=False),
+            dtype=float,
+        )
+        self._mu = np.asarray(
+            self.expected_return.estimate(X=X, inplace=False),
+            dtype=float,
+        ).reshape(-1)
+
+        self.objective = Objective(
+            q=self._mu * (-1),
+            P=2 * self._covmat,
+        )
+        return None
+
+    def solve(self) -> None:
+
+        # Solve the tangency portfolio with a fixed-point update on lambda.
+        # Each iteration solves a mean-variance problem, then refreshes lambda
+        # from the portfolio it just produced.
+
+        risk_aversion = 1.0
+        max_iter = int(self.params.get('max_iter', 10))
+        tol = float(self.params.get('tol', 1e-8))
+
+        # Keep the full iteration trace and the best portfolio seen so far.
+        sharpe_ratio_val = []
+        risk_aversion_val = []
+        w_dict = {}
+
+        for _ in range(max_iter):
+
+            # Update the objective's P matrix with the current risk_aversion value and 
+            # solve the mean-variance problem.
+            self.objective.coefficients["P"] = 2 * risk_aversion * self._covmat
+            super().solve()
+
+            # Align solver weights with the asset order used by mu and Sigma.
+            w = (
+                pd.Series(self.results['weights'])
+                .reindex(self.constraints.ids)
+                .to_numpy(dtype=float)
+            )
+            w_dict[_] = w.copy()
+
+            portfolio_return = self._mu @ w
+            portfolio_variance = w @ self._covmat @ w
+
+            # Stop if variance is not usable, since Sharpe would be undefined.
+            if portfolio_variance <= 0:
+                break
+
+            sharpe_ratio = portfolio_return / np.sqrt(portfolio_variance)
+            sharpe_ratio_val.append(sharpe_ratio)
+            risk_aversion_val.append(risk_aversion)
+
+            # Update the risk_aversion parameter based on the current portfolio.
+            risk_aversion_new = portfolio_return / (2 * portfolio_variance)
+            if not np.isfinite(risk_aversion_new) or risk_aversion_new <= 0:
+                break
+
+            if abs(risk_aversion_new - risk_aversion) <= tol:
+                break
+
+            risk_aversion = risk_aversion_new
+
+        # Attach the iteration trace to results
+        self.results['sharpe_ratio_values'] = pd.Series(sharpe_ratio_val)
+        self.results['risk_aversion_values'] = pd.Series(risk_aversion_val)
+        self.results['w_dict'] = w_dict
+
+        return None
+
+
+
 class PercentilePortfolio(Optimization):
 
     def __init__(self,

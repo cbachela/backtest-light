@@ -33,8 +33,8 @@ import numpy as np
 import pandas as pd
 
 # Add the project root directory to Python path
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-src_path = os.path.join(project_root, 'src')
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+src_path = os.path.join(project_root, 'src/btlight')
 sys.path.append(project_root)
 sys.path.append(src_path)
 
@@ -57,8 +57,11 @@ from optimization.optimization import MeanVariance
 # Load data
 # --------------------------------------------------------------------------
 
-N = 10
-data = load_data_msci(path = '../data/', n = N)
+N = 24
+data = load_data_msci(
+    path=os.path.join(project_root, 'data/'),
+    n=N
+)
 data
 
 
@@ -95,13 +98,15 @@ Sigma = covariance.estimate(X=return_series, inplace=False)
 # --------------------------------------------------------------------------
 
 # Instantiate the class
-constraints = Constraints(ids = return_series.columns.tolist())
+constraints = Constraints(
+    ids=return_series.columns.tolist()
+)
 
 # Add budget constraint
 constraints.add_budget(rhs=1, sense='=')
 
 # Add box constraints (i.e., lower and upper bounds)
-constraints.add_box(lower=0, upper=0.2)
+constraints.add_box(lower=0, upper=0.6)
 
 # Add linear constraints
 G = pd.DataFrame(np.zeros((2, N)), columns=constraints.ids)
@@ -231,6 +236,50 @@ ls.solve()
 
 weights_ls = pd.Series(ls.results['weights'], index=return_series.columns)
 weights_ls
+
+
+
+
+
+
+# --------------------------------------------------------------------------
+# Solve for a maximum sharpe ratio portfolio by iterative mean-variance optimization
+# --------------------------------------------------------------------------
+
+from optimization.optimization import MaxSharpe
+
+# Instantiate the optimization object
+ms = MaxSharpe(
+    constraints=constraints,
+    covariance=covariance,
+    expected_return=expected_return,
+    solver_name='cvxopt',
+)
+
+# Create an OptimizationData object that contains an element `return_series` holding
+# the last 256 observations (weekdays) of the return series as well as the benchmark
+# return series for the same period
+y = data['bm_series']
+optimization_data = OptimizationData(
+    return_series=return_series.tail(256),
+    bm_series=y,
+    align=True
+)
+
+# Set the objective and solve
+ms.set_objective(optimization_data=optimization_data)
+ms.solve()
+ms.results["sharpe_ratio_values"]
+ms.results["risk_aversion_values"]
+ms.results["weights"]
+
+df = pd.DataFrame({
+    'sharpe_ratio_values': ms.results["sharpe_ratio_values"],
+    'risk_aversion_values': ms.results["risk_aversion_values"]
+})
+df
+df.plot(kind="line", x="risk_aversion_values", y="sharpe_ratio_values")
+
 
 
 
