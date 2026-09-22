@@ -114,6 +114,40 @@ def cov_pearson(X:  Union[pd.DataFrame, np.ndarray]) -> Union[pd.DataFrame, np.n
     return covmat
 
 
+def cov_to_corr(cov_matrix: Union[pd.DataFrame, np.ndarray]) -> Union[pd.DataFrame, np.ndarray]:
+    """Transform a covariance matrix into a correlation matrix."""
+    if isinstance(cov_matrix, pd.DataFrame):
+        cov_values = cov_matrix.to_numpy(dtype=float)
+        is_dataframe = True
+    else:
+        cov_values = np.asarray(cov_matrix, dtype=float)
+        is_dataframe = False
+
+    if cov_values.ndim != 2 or cov_values.shape[0] != cov_values.shape[1]:
+        raise ValueError('Input covariance matrix must be a square 2D matrix.')
+
+    std = np.sqrt(np.diag(cov_values))
+    denom = np.outer(std, std)
+
+    corr_values = np.divide(
+        cov_values,
+        denom,
+        out=np.zeros_like(cov_values, dtype=float),
+        where=denom != 0
+    )
+
+    np.fill_diagonal(corr_values, np.where(std > 0, 1.0, 0.0))
+    corr_values = np.clip(corr_values, -1.0, 1.0)
+
+    if is_dataframe:
+        return pd.DataFrame(
+            corr_values,
+            index=cov_matrix.index,
+            columns=cov_matrix.columns
+        )
+
+    return corr_values
+
 
 def is_pos_def(B):
     """Returns true when input is positive-definite, via Cholesky"""
@@ -122,7 +156,7 @@ def is_pos_def(B):
         return True
     except np.linalg.LinAlgError:
         return False
-   
+
 
 
 def make_pos_def(A):

@@ -442,8 +442,6 @@ class MaxSharpe(Optimization):
                  **kwargs) -> None:
         super().__init__(
             constraints=constraints,
-            covariance=covariance,
-            expected_return=expected_return,
             max_iter=max_iter,
             tol=tol,
             **kwargs,
