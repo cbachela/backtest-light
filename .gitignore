@@ -12,6 +12,7 @@ build/
 develop-eggs/
 dist/
 downloads/
+data/
 eggs/
 .eggs/
 lib/
@@ -174,3 +175,8 @@ cython_debug/
 *.excalidraw
 *.excalidraw.png
 *.excalidraw.svg
+
+# Local thesis data, credentials and generated results
+*.npz
+config.ini
+outputs/
