@@ -12,7 +12,15 @@ from cvxpylayers.torch import CvxpyLayer
 
 
 class PortfolioLayer(torch.nn.Module):
-    def __init__(self, assets, risk_aversion=1.0, cap=0.1, risk="variance", cost=0.0):
+    def __init__(
+        self,
+        assets,
+        risk_aversion=1.0,
+        cap=0.1,
+        risk="variance",
+        cost=0.0,
+        diagonal=False,
+    ):
         super().__init__()
         if risk not in {"variance", "sd"}:
             raise ValueError("risk must be variance or sd")
@@ -23,10 +31,11 @@ class PortfolioLayer(torch.nn.Module):
         self.risk_aversion, self.risk, self.cost = risk_aversion, risk, cost
         w = cp.Variable(assets)
         mu = cp.Parameter(assets)
-        factor = cp.Parameter((assets, assets))
+        factor = cp.Parameter(assets if diagonal else (assets, assets))
         previous = cp.Parameter(assets)
         # Factor.T @ factor = covariance makes the problem DPP-compliant.
-        risk_term = cp.sum_squares(factor @ w) if risk == "variance" else cp.norm(factor @ w)
+        exposure = cp.multiply(factor, w) if diagonal else factor @ w
+        risk_term = cp.sum_squares(exposure) if risk == "variance" else cp.norm(exposure)
         objective = -mu @ w + risk_aversion * risk_term + cost / 2 * cp.norm1(w - previous)
         problem = cp.Problem(cp.Minimize(objective), [w >= 0, cp.sum(w) == 1, w <= cap])
         self.solver = CvxpyLayer(problem, parameters=[mu, factor, previous], variables=[w])
@@ -46,7 +55,7 @@ class PortfolioLayer(torch.nn.Module):
         return weights
 
     def loss(self, weights, realized, factor, previous):
-        exposure = factor @ weights
+        exposure = factor * weights if factor.ndim == 1 else factor @ weights
         risk = exposure.square().sum() if self.risk == "variance" else exposure.norm()
         # Wang eq. (21): substitute realized returns in the upper loss.
         return (

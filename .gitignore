@@ -12,7 +12,7 @@ build/
 develop-eggs/
 dist/
 downloads/
-data/
+/data/
 eggs/
 .eggs/
 lib/
@@ -180,3 +180,4 @@ cython_debug/
 *.npz
 config.ini
 outputs/
+.DS_Store

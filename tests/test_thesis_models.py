@@ -8,7 +8,7 @@ import torch
 from btlight.data.panel import synthetic_panel
 from btlight.ml.training.portfolio_data import rolling_splits, covariance_factors
 from btlight.optimization.differentiable import PortfolioLayer
-from btlight.ml.training.wang_e2e import run
+from btlight.ml.training.e2e import run
 
 
 def test_paper_example_and_gradient():
@@ -57,16 +57,8 @@ def test_no_future_information():
     assert torch.equal(before, covariance_factors(panel)[300])
 
 
-def test_e2e_runs(tmp_path):
-    path = tmp_path / "errors.npz"
-    result = run(synthetic_panel(), epochs=1, smoke=True, uncertainty_output=path, error_window=20)
-    with np.load(path, allow_pickle=False) as saved:
-        assert saved["covariance"].shape == (8, 20, 20)
-        assert saved["variance"].shape == (8, 20)
-        np.testing.assert_allclose(
-            saved["variance"], np.diagonal(saved["covariance"], axis1=1, axis2=2)
-        )
-        assert np.isfinite(saved["covariance"]).all()
+def test_e2e_runs():
+    result = run(synthetic_panel(), epochs=1, smoke=True)
     assert result.observations.iloc[0] == 8
     assert np.isfinite(result.select_dtypes(include="number").to_numpy()).all()
 

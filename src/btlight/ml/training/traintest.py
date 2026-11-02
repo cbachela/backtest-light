@@ -1,9 +1,10 @@
+import logging
 import os
+
 import joblib
 import pandas as pd
-from ml.naming.model_name import resolve_target_name
 from ml.io.model_io import model_path
-import logging
+from ml.naming.model_name import resolve_target_name
 
 logger = logging.getLogger(__name__)
 
