@@ -7,7 +7,10 @@ import sys
 import pytest
 
 
-@pytest.mark.parametrize("model,stage", [("gaussian", "nll"), ("baseline", "mse")])
+@pytest.mark.parametrize(
+    "model,stage",
+    [("gaussian", "nll"), ("baseline", "mse"), ("gaussian_pto", "nll"), ("equal_weight", None)],
+)
 def test_training_log_and_plot(tmp_path, model, stage):
     root = Path(__file__).resolve().parents[1]
     log = tmp_path / f"{model}.jsonl"
@@ -16,7 +19,8 @@ def test_training_log_and_plot(tmp_path, model, stage):
             sys.executable,
             str(root / "demo/ml/train.py"),
             "--model",
-            model,
+            "gaussian" if model == "gaussian_pto" else model,
+            *(["--no-e2e"] if model == "gaussian_pto" else []),
             "--smoke",
             "--epochs",
             "2",
@@ -34,21 +38,30 @@ def test_training_log_and_plot(tmp_path, model, stage):
     assert records[0]["event"] == "experiment_start"
     assert records[-1]["event"] == "experiment_end"
     settings = next(r for r in records if r["event"] == "settings")
-    assert settings["pretrain"] is True
-    assert settings["variance_floor"] == (1e-8 if model == "gaussian" else None)
+    assert settings["pretrain"] is (model != "equal_weight")
+    assert settings["variance_floor"] == (1e-8 if model.startswith("gaussian") else None)
     epochs = [r for r in records if r["event"] == "epoch"]
-    assert [(r["stage"], r["epoch"]) for r in epochs] == [
+    expected = [
         (stage, 1),
         (stage, 2),
         ("e2e", 1),
         ("e2e", 2),
     ]
+    if model == "equal_weight":
+        expected = []
+    if model == "gaussian_pto":
+        expected = expected[:2]
+    assert [(r["stage"], r["epoch"]) for r in epochs] == expected
     for r in epochs:
         assert r["quarter"] == "2014-01-01"
         assert r["epoch_seconds"] > 0
         assert r["train_seconds"] + r["validation_seconds"] == pytest.approx(r["epoch_seconds"])
         assert isinstance(r["train_loss"], float) and isinstance(r["validation_loss"], float)
         assert r["timestamp"].endswith("+00:00")
+
+    if model == "equal_weight":
+        assert settings["solver"] is None
+        return
 
     spec = importlib.util.spec_from_file_location("plot_loss", root / "demo/ml/plot_loss.py")
     plot = importlib.util.module_from_spec(spec)

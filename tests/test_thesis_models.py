@@ -111,3 +111,22 @@ def test_error_predictions_preserve_model_state_and_gradients():
         torch.testing.assert_close(value, buffers[name])
     predictions.square().mean().backward()
     assert any(p.grad is not None and p.grad.abs().sum() > 0 for p in model.parameters())
+
+
+def test_equal_weight_returns_without_training_or_solver(monkeypatch):
+    import btlight.ml.training.e2e as training
+
+    def unexpected(*args, **kwargs):
+        raise AssertionError("Equal weight must not train or solve")
+
+    monkeypatch.setattr(training, "fit", unexpected)
+    monkeypatch.setattr(training, "PortfolioLayer", unexpected)
+    panel = synthetic_panel()
+    _, _, _, test = next(training.experiment_splits(
+        panel, "2014-01-01", covariance_factors(panel), smoke=True
+    ))
+    result = run(panel, prediction="equal_weight", smoke=True, cost=0.001)
+    returns = panel.raw_returns[test].mean(axis=1)
+    assert result.annualized_return.iloc[0] == pytest.approx(returns.mean() * 252)
+    assert result.pretrain.iloc[0] == False
+    assert result.model.iloc[0] == "Equal weight"

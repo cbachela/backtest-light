@@ -1,4 +1,10 @@
-"""Shared walk-forward training for point and Gaussian portfolio models."""
+"""Train and evaluate portfolios in quarterly walk-forward windows.
+
+fit() handles forecast pretraining and E2E learning through the allocation layer.
+run() fits a fresh model per window, evaluates held-out dates, and summarizes
+performance. It also supports forecast-only training (PTO) and equal weights.
+Fixed panels can use historical correlations, changing universes use diagonal risk.
+"""
 
 import math
 from copy import deepcopy
@@ -26,6 +32,7 @@ from btlight.optimization.differentiable import PortfolioLayer
 
 
 def dynamic_distribution(model, features):
+    """Model changing cross-sections with conditionally independent asset returns."""
     mean, variance = model.predict_moments(features)
     return torch.distributions.Independent(torch.distributions.Normal(mean, variance.sqrt()), 1)
 
@@ -108,6 +115,7 @@ def fit(
 
     def run(indices, training):
         model.train(training)
+        # Each train/validation pass starts afresh; dates stay in chronological order.
         previous = None
         previous_ids = []
         total = 0.0
@@ -148,6 +156,7 @@ def fit(
                             current_ids,
                             () if executed_exits is None else executed_exits.get(t, ()),
                         )
+                    # Match holdings by asset ID, including confirmed sales of departing assets.
                     previous_ids = current_ids
                 elif previous is None:
                     previous = torch.full((n,), 1 / n, dtype=torch.float64)
@@ -163,6 +172,7 @@ def fit(
                 loss = allocator.loss(weights, y, factor, previous)
                 loss = loss + allocator.cost / 2 * exit_weight
                 if probabilistic:
+                    # Retain a forecast-fitting term alongside the portfolio objective.
                     loss = loss + nll_weight * nll
                 losses.append(loss)
                 previous = weights
@@ -217,6 +227,7 @@ def fit(
         if stale >= patience:
             break
 
+    # Use the best validation epoch rather than the final training epoch.
     model.load_state_dict(best_state)
     model.eval()
     if log:
@@ -243,6 +254,7 @@ def run(
     first_test="2014-01-01",
     smoke=False,
     prediction="point",
+    finetune=True,
     initial_variance=1e-4,
     variance_floor=1e-8,
     correlation_shrinkage=0.1,
@@ -252,9 +264,16 @@ def run(
     log=None,
 ):
     dynamic = isinstance(panel, DynamicPanel)
-    if prediction not in {"point", "gaussian"}:
-        raise ValueError("prediction must be point or gaussian")
-    probabilistic = prediction == "gaussian"
+    if prediction not in {"point", "gaussian", "equal_weight"}:
+        raise ValueError("prediction must be point, gaussian or equal_weight")
+    if not math.isfinite(cost) or cost < 0:
+        raise ValueError("cost must be finite and nonnegative")
+    equal_weight = prediction == "equal_weight"
+    if not equal_weight and not pretrain and not finetune:
+        raise ValueError("enable pretraining or E2E fine-tuning")
+    strategy = "equal_weight" if equal_weight else ("e2e" if finetune else "pto")
+    probabilistic = prediction == "gaussian" and not equal_weight
+    pretrain = pretrain and not equal_weight
     if probabilistic:
         if risk != "variance":
             raise ValueError("Gaussian mode requires variance risk")
@@ -267,25 +286,28 @@ def run(
     if log:
         log(
             "settings",
-            prediction=prediction,
+            prediction=None if equal_weight else prediction,
+            finetune=finetune and not equal_weight,
             pretrain=pretrain,
             max_epochs=epochs,
-            risk=risk,
-            risk_aversion=risk_aversion,
+            risk="none" if equal_weight else risk,
+            risk_aversion=0.0 if equal_weight else risk_aversion,
             cost=cost,
             first_test=first_test,
             initial_variance=initial_variance if probabilistic else None,
             variance_floor=variance_floor if probabilistic else None,
-            nll_weight=nll_weight if probabilistic else None,
+            nll_weight=(nll_weight if strategy == "e2e" else 0.0) if probabilistic else None,
             correlation_shrinkage=correlation_shrinkage if probabilistic and not dynamic else 0.0,
             covariance_model=(
-                "historical-correlation" if probabilistic and not dynamic else "diagonal"
+                None
+                if equal_weight
+                else ("historical-correlation" if probabilistic and not dynamic else "diagonal")
             ),
-            asset_cap=0.1,
+            asset_cap=None if equal_weight else 0.1,
             seed=7,
             dtype="float64",
             torch_threads=1,
-            solver="Clarabel",
+            solver=None if equal_weight else "Clarabel",
             dynamic=dynamic,
             smoke=smoke,
             features=int(panel.features.shape[-1]),
@@ -298,6 +320,7 @@ def run(
             test_months=3,
         )
 
+    # Historical risk scores portfolios; Gaussian forecasts supply allocation risk.
     torch.manual_seed(7)
     torch.set_num_threads(1)
     factors = range(len(panel.dates)) if dynamic else covariance_factors(panel)
@@ -311,7 +334,11 @@ def run(
     def allocation_layer(n):
         return PortfolioLayer(n, risk_aversion, risk=risk, cost=cost, diagonal=dynamic)
 
-    layer = allocation_layer(int(panel.offsets[1]) if dynamic else len(panel.assets))
+    layer = (
+        None
+        if equal_weight
+        else allocation_layer(int(panel.offsets[1]) if dynamic else len(panel.assets))
+    )
     records = []
     distribution_records = []
     forecast_scores = []
@@ -320,12 +347,16 @@ def run(
         if dynamic
         else torch.full((len(panel.assets),), 1 / len(panel.assets), dtype=torch.float64)
     )
+    # Test holdings persist across quarters even though each network is refitted.
     previous_ids, previous_end = [], None
     for quarter, train, val, test in experiment_splits(panel, first_test, factors, smoke):
         if dynamic:
             for ids in (train, val, test):
                 panel.validate_portfolio_dates(ids)
-        if probabilistic:
+        # Refit from initialization using only this window's train/validation dates.
+        if equal_weight:
+            model = None
+        elif probabilistic:
             model = GaussianReturnPredictor(
                 panel.features.shape[-1],
                 initial_variance=initial_variance,
@@ -353,6 +384,10 @@ def run(
             if pretrain
             else "E2E from initialization"
         )
+        if strategy == "pto":
+            schedule = f"{pretraining.upper()} training only, then allocation"
+        elif equal_weight:
+            schedule = "Equal weight; no training"
         print(
             f"{quarter}: {schedule} ({prediction})",
             flush=True,
@@ -373,21 +408,22 @@ def run(
                 log=log,
                 quarter=quarter,
             )
-        fit(
-            model,
-            panel,
-            train,
-            val,
-            factors,
-            layer,
-            epochs,
-            "e2e",
-            correlations=correlations,
-            nll_weight=nll_weight,
-            executed_exits=executed_exits,
-            log=log,
-            quarter=quarter,
-        )
+        if strategy == "e2e":
+            fit(
+                model,
+                panel,
+                train,
+                val,
+                factors,
+                layer,
+                epochs,
+                "e2e",
+                correlations=correlations,
+                nll_weight=nll_weight,
+                executed_exits=executed_exits,
+                log=log,
+                quarter=quarter,
+            )
 
         if log:
             log("test_start", quarter=quarter, dates=len(test))
@@ -409,9 +445,12 @@ def run(
                         () if executed_exits is None else executed_exits.get(t, ()),
                     )
                     previous_ids = current_ids
-                    allocator = allocation_layer(len(current_ids))
+                    if not equal_weight:
+                        allocator = allocation_layer(len(current_ids))
 
-                if probabilistic:
+                if equal_weight:
+                    weights = torch.full_like(previous, 1 / len(features))
+                elif probabilistic:
                     distribution = (
                         dynamic_distribution(model, features)
                         if dynamic
@@ -429,7 +468,8 @@ def run(
                         else factors[t]
                     )
 
-                weights = allocator(mu, allocation_factor, previous)
+                if not equal_weight:
+                    weights = allocator(mu, allocation_factor, previous)
                 if probabilistic:
                     realized = torch.tensor(panel.targets[sl], dtype=torch.float64)
                     nll = gaussian_nll(distribution, realized).item()
@@ -447,6 +487,7 @@ def run(
                             )
                         )
 
+                # Approximate turnover from weight changes, without return-drift adjustment.
                 turnover = ((weights - previous).abs().sum() + exit_weight).item() / 2
                 records.append((t, weights.numpy(), cost * turnover))
                 previous = weights
@@ -454,6 +495,7 @@ def run(
         if log:
             log("window_end", quarter=quarter, test_dates=len(test))
 
+    # Packed arrays preserve variable cross-section sizes in forecast exports.
     if distribution_output is not None and dynamic:
         path = Path(distribution_output)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -468,7 +510,7 @@ def run(
             variance=np.concatenate([r[2] for r in distribution_records]),
             weights=np.concatenate([r[4] for r in distribution_records]),
             targets=np.concatenate([panel.targets[panel.day(t)] for t in ids]),
-            interpretation="dynamic Gaussian E2E; diagonal covariance; confirmed exits only",
+            interpretation=f"dynamic Gaussian {strategy.upper()}; diagonal covariance; confirmed exits only",
         )
     elif distribution_output is not None:
         path = Path(distribution_output)
@@ -486,20 +528,23 @@ def run(
             targets=panel.targets[ids],
             nll_per_asset=np.array(forecast_scores)[:, 0],
             correlation_shrinkage=correlation_shrinkage,
-            nll_weight=nll_weight,
+            nll_weight=nll_weight if strategy == "e2e" else 0.0,
             initial_variance=initial_variance,
             variance_floor=variance_floor,
             interpretation="conditional Gaussian panel-target returns; no parameter posterior",
         )
         print(f"Saved return-distribution diagnostics to {path}")
 
-    model_name = "Wang E2E"
+    model_name = "Wang E2E" if finetune else "Point PTO"
     if probabilistic:
-        model_name = "Gaussian returns E2E"
+        model_name = f"Gaussian returns {strategy.upper()}"
+    if equal_weight:
+        model_name = "Equal weight"
     result = summarize(panel, records).assign(
         model=model_name,
-        risk=risk,
-        risk_aversion=risk_aversion,
+        strategy=strategy,
+        risk="none" if equal_weight else risk,
+        risk_aversion=0.0 if equal_weight else risk_aversion,
         cost=cost,
         smoke=smoke,
         pretrain=pretrain,
@@ -507,7 +552,7 @@ def run(
     if probabilistic:
         result = result.assign(
             prediction=prediction,
-            nll_weight=nll_weight,
+            nll_weight=nll_weight if strategy == "e2e" else 0.0,
             initial_variance=initial_variance,
             variance_floor=variance_floor,
             correlation_shrinkage=0.0 if dynamic else correlation_shrinkage,

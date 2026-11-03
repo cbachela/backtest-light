@@ -1,4 +1,8 @@
-"""Shared point, BL-confidence and single-network Gaussian return predictors."""
+"""Map one date's asset features to return forecasts using a shared network.
+
+ReturnPredictor supplies point forecasts. 
+GaussianReturnPredictor adds a positive return-variance head.
+"""
 
 import math
 
@@ -16,6 +20,7 @@ class ReturnPredictor(nn.Module):
         super().__init__()
         if features < 1 or depth not in range(6):
             raise ValueError("features must be positive; depth must be 0 (linear) through 5")
+        # Apply the same network to every asset; depth=0 gives a linear predictor.
         layers = []
         if depth:
             layers.append(nn.LayerNorm(features))
@@ -77,9 +82,11 @@ class GaussianReturnPredictor(ReturnPredictor):
 
     def predict_moments(self, features):
         """Marginal moments without allocating a dense cross-asset covariance."""
+        # Share hidden features between the mean and variance heads.
         hidden = self.network[:-1](features)
         mean = self.network[-1](hidden).squeeze(-1)
         score = self.variance_head(hidden).squeeze(-1)
+        # Softplus keeps variance positive and starts it at initial_variance.
         variance = self.variance_floor + (
             (self.initial_variance - self.variance_floor) * F.softplus(score) / math.log(2)
         )

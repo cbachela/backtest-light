@@ -210,8 +210,11 @@ def test_exit_lookup_requires_matching_execution(tmp_path):
     assert exit_lookup(p, tmp_path / "exits.parquet")[3] == {0}
 
 
-@pytest.mark.parametrize("prediction", ["point", "gaussian"])
-def test_dynamic_e2e_with_confirmed_exits(tmp_path, prediction):
+@pytest.mark.parametrize(
+    "prediction,strategy",
+    [("point", "e2e"), ("gaussian", "e2e"), ("gaussian", "pto"), ("point", "equal_weight")],
+)
+def test_dynamic_e2e_with_confirmed_exits(tmp_path, prediction, strategy):
     from btlight.ml.training.e2e import run
 
     p = synthetic_dynamic()
@@ -230,13 +233,29 @@ def test_dynamic_e2e_with_confirmed_exits(tmp_path, prediction):
         smoke=True,
         first_test="2021-01-01",
         risk="variance",
-        prediction=prediction,
+        prediction="equal_weight" if strategy == "equal_weight" else prediction,
+        finetune=strategy != "pto",
         cost=0.001,
         executed_exits=exits,
         distribution_output=(tmp_path / "dynamic.npz" if prediction == "gaussian" else None),
     )
     assert result.observations.iloc[0] == 8
     assert np.isfinite(result.annualized_return.iloc[0])
+    if strategy == "equal_weight":
+        from btlight.ml.training.portfolio_data import experiment_splits
+
+        _, _, _, test = next(experiment_splits(p, "2021-01-01", range(len(p.dates)), True))
+        previous = {}
+        returns = []
+        for t in test:
+            sl = p.day(t)
+            ids = p.asset_index[sl]
+            current = dict.fromkeys(ids, 1 / len(ids))
+            turnover = sum(abs(current.get(i, 0) - previous.get(i, 0))
+                           for i in current.keys() | previous.keys()) / 2
+            returns.append(p.targets[sl].mean() - 0.001 * turnover)
+            previous = current
+        assert result.annualized_return.iloc[0] == pytest.approx(np.mean(returns) * 252)
     if prediction == "gaussian":
         with np.load(tmp_path / "dynamic.npz", allow_pickle=False) as saved:
             assert len(np.unique(np.diff(saved["offsets"]))) > 1

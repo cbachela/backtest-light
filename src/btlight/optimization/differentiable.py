@@ -1,7 +1,8 @@
 """Convex portfolio layer retaining gradients through the allocation decision.
 
-The existing NumPy/qpsolvers interface is suitable for backtesting, but cannot
-propagate PyTorch gradients during end-to-end training.
+This layer chooses long-only, fully invested, capped weights from forecast returns
+and risk, with an optional turnover penalty. loss() scores those weights using realized returns
+and a separately supplied risk factor.
 """
 
 import math
@@ -36,11 +37,14 @@ class PortfolioLayer(torch.nn.Module):
         # Factor.T @ factor = covariance makes the problem DPP-compliant.
         exposure = cp.multiply(factor, w) if diagonal else factor @ w
         risk_term = cp.sum_squares(exposure) if risk == "variance" else cp.norm(exposure)
+        # Minimize negative forecast utility; half the L1 change measures turnover.
         objective = -mu @ w + risk_aversion * risk_term + cost / 2 * cp.norm1(w - previous)
+        # Require full investment, no short positions, and a per-asset weight cap.
         problem = cp.Problem(cp.Minimize(objective), [w >= 0, cp.sum(w) == 1, w <= cap])
         self.solver = CvxpyLayer(problem, parameters=[mu, factor, previous], variables=[w])
 
     def forward(self, mu, factor, previous):
+        # CvxpyLayer differentiates the solution with respect to its inputs.
         (weights,) = self.solver(
             mu,
             factor,
