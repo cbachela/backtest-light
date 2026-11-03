@@ -10,13 +10,12 @@ commands from the repository root. The portfolio experiments require Python 3.10
 or newer; the commands below use Python 3.11.
 
 ```sh
-uv sync --python 3.11 --extra e2e
+uv sync --python 3.11
 uv run --no-sync python demo/ml/train.py --smoke --epochs 1
 ```
 
 This runs a short experiment on synthetic data. Results and a timestamped training
-log are saved in `outputs/`. Add `--extra wrds` to the sync command if using the
-WRDS download scripts.
+log are saved in a dated run folder under `outputs/`.
 
 ## Main files
 
@@ -84,8 +83,6 @@ uv run --no-sync python demo/ml/train.py --model equal_weight \
 Useful options:
 
 - `--cost VALUE`: turnover cost coefficient (default `0`).
-- `--output PATH`: summary CSV (default `outputs/<model>_<e2e|pto>.csv`, or `outputs/equal_weight.csv`).
-- `--distribution-output PATH.npz`: save Gaussian forecasts and portfolio weights.
 - `--smoke --epochs 1`: short check with reduced windows and date counts.
 - `--help`: show all command-line options.
 
@@ -94,11 +91,16 @@ Useful options:
 
 ## Training logs
 
+By default, each run creates a folder such as
+`outputs/2026-11-03_14-30-00-123456_+0800_gaussian_e2e/`, using local time and the
+model/training type. The summary CSV and log are saved together. Gaussian runs
+also save an NPZ containing forecasts and portfolio weights in the same folder.
+
 Each run prints the path to a timestamped JSONL log containing settings, split dates,
-epoch losses, and completion status. Use `--log PATH` to choose a new log filename.
+epoch losses, and completion status.
 
 ```sh
-uv run --no-sync python demo/ml/plot_loss.py outputs/<run>.jsonl
+uv run --no-sync python demo/ml/plot_loss.py outputs/<run-folder>/<log>.jsonl
 ```
 
 The plot is saved beside the log as `<run>.loss.png`. It can also be generated while

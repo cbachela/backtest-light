@@ -132,6 +132,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+uv.lock
 
 # cache
 __pycache__

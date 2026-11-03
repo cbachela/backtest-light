@@ -38,13 +38,8 @@ def main():
     parser.add_argument("--risk", choices=["sd", "variance"])
     parser.add_argument("--cost", type=float, default=0.0)
     parser.add_argument("--first-test", help="First test quarter; default 2024-01-01 on real data")
-    parser.add_argument("--output", help="Summary CSV; default name follows the selected model")
-    parser.add_argument("--distribution-output", type=Path, help="Optional Gaussian forecasts NPZ")
     parser.add_argument(
         "--exit-audit", type=Path, help="Audited eligibility exits with sale prices and dates"
-    )
-    parser.add_argument(
-        "--log", type=Path, help="JSONL log; default is a timestamped file beside output"
     )
     args = parser.parse_args()
 
@@ -55,7 +50,9 @@ def main():
         if args.model == "equal_weight"
         else f"{args.model}_{'pto' if args.no_e2e else 'e2e'}"
     )
-    args.output = args.output or f"outputs/{name}.csv"
+    stamp = datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S-%f_%z")
+    output = Path("outputs") / f"{stamp}_{name}" / f"{name}.csv"
+    distribution_output = output.with_suffix(".npz") if args.prediction == "gaussian" else None
 
     # Model constants live in Python; the CLI controls the experiment only.
     args.risk = args.risk or ("variance" if args.prediction == "gaussian" else "sd")
@@ -63,24 +60,10 @@ def main():
         parser.error("epochs must be positive")
     if args.prediction == "gaussian" and args.risk != "variance":
         parser.error("Gaussian forecasts require variance risk")
-    if args.distribution_output is not None:
-        if args.prediction != "gaussian" or args.distribution_output.suffix != ".npz":
-            parser.error("distribution-output requires Gaussian prediction and an .npz path")
-        if Path(args.output).resolve() == args.distribution_output.resolve():
-            parser.error("summary and forecasts need different output paths")
 
     # Use a fresh log for each run so partial progress survives interruption.
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
-    output = Path(args.output)
-    log_path = args.log or output.with_name(f"{output.stem}_{stamp}.jsonl")
-    if log_path.resolve() in {
-        output.resolve(),
-        *([args.distribution_output.resolve()] if args.distribution_output else []),
-    }:
-        parser.error("log and result outputs need different paths")
-    if log_path.exists():
-        parser.error("log already exists; choose a new path")
-    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_path = output.with_suffix(".jsonl")
+    log_path.parent.mkdir(parents=True, exist_ok=False)
     started = perf_counter()
     with log_path.open("x", buffering=1) as stream:
 
@@ -102,7 +85,7 @@ def main():
             panel=str(Path(args.panel).resolve()) if args.panel else "synthetic-seed-7",
             exit_audit=str(args.exit_audit) if args.exit_audit else None,
             output=str(output),
-            distribution_output=str(args.distribution_output) if args.distribution_output else None,
+            distribution_output=str(distribution_output) if distribution_output else None,
         )
         try:
             # Load the panel and any confirmed exits before starting walk-forward training.
@@ -122,12 +105,12 @@ def main():
                 first_test=args.first_test
                 or ("2014-01-01" if args.smoke and not args.panel else "2024-01-01"),
                 smoke=args.smoke,
-                distribution_output=args.distribution_output,
+                distribution_output=distribution_output,
                 executed_exits=exit_lookup(panel, args.exit_audit) if args.exit_audit else None,
                 log=log,
             )
             # Save the performance summary; Gaussian forecasts are exported by run().
-            save_results([result], args.output, args.panel or "synthetic-seed-7")
+            save_results([result], output, args.panel or "synthetic-seed-7")
         except BaseException as error:
             log(
                 "interrupted" if isinstance(error, KeyboardInterrupt) else "failed",

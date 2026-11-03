@@ -13,7 +13,6 @@ import pytest
 )
 def test_training_log_and_plot(tmp_path, model, stage):
     root = Path(__file__).resolve().parents[1]
-    log = tmp_path / f"{model}.jsonl"
     subprocess.run(
         [
             sys.executable,
@@ -24,16 +23,20 @@ def test_training_log_and_plot(tmp_path, model, stage):
             "--smoke",
             "--epochs",
             "2",
-            "--output",
-            str(tmp_path / "results.csv"),
-            "--log",
-            str(log),
         ],
-        cwd=root,
+        cwd=tmp_path,
         check=True,
         capture_output=True,
         text=True,
     )
+    folders = list((tmp_path / "outputs").iterdir())
+    assert len(folders) == 1
+    name = model if model in {"gaussian_pto", "equal_weight"} else f"{model}_e2e"
+    assert folders[0].name.endswith(f"_{name}")
+    assert folders[0].name[:10].count("-") == 2
+    assert (folders[0] / f"{name}.csv").is_file()
+    assert (folders[0] / f"{name}.npz").is_file() is model.startswith("gaussian")
+    (log,) = folders[0].glob("*.jsonl")
     records = [json.loads(line) for line in log.read_text().splitlines()]
     assert records[0]["event"] == "experiment_start"
     assert records[-1]["event"] == "experiment_end"
