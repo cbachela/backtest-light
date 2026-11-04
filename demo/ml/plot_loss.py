@@ -36,9 +36,12 @@ def plot_loss(path, output=None):
             if not values:
                 ax.set_visible(False)
                 continue
-            epochs = [r["epoch"] for r in values]
-            ax.plot(epochs, [r["train_loss"] for r in values], ".-", label="Training")
-            ax.plot(epochs, [r["validation_loss"] for r in values], ".-", label="Validation")
+            for member in dict.fromkeys(r.get("member", 1) for r in values):
+                member_values = [r for r in values if r.get("member", 1) == member]
+                epochs = [r["epoch"] for r in member_values]
+                label = f" member {member}" if len({r.get("member", 1) for r in values}) > 1 else ""
+                ax.plot(epochs, [r["train_loss"] for r in member_values], ".-", label="Training" + label)
+                ax.plot(epochs, [r["validation_loss"] for r in member_values], ".-", label="Validation" + label)
             ax.set(title=f"{quarter} · {stage.upper()}", xlabel="Epoch", ylabel="Loss")
             ax.grid(alpha=0.2)
             ax.legend()

@@ -9,7 +9,7 @@ import pytest
 
 @pytest.mark.parametrize(
     "model,stage",
-    [("gaussian", "nll"), ("baseline", "mse"), ("gaussian_pto", "nll"), ("equal_weight", None)],
+    [("gaussian", "nll"), ("baseline", "mse"), ("gaussian_pto", "nll"), ("equal_weight", None), ("gaussian_ensemble", "nll")],
 )
 def test_training_log_and_plot(tmp_path, model, stage):
     root = Path(__file__).resolve().parents[1]
@@ -18,7 +18,8 @@ def test_training_log_and_plot(tmp_path, model, stage):
             sys.executable,
             str(root / "demo/ml/train.py"),
             "--model",
-            "gaussian" if model == "gaussian_pto" else model,
+            "gaussian" if model in {"gaussian_pto", "gaussian_ensemble"} else model,
+            *(["--members", "2"] if model == "gaussian_ensemble" else []),
             *(["--no-e2e"] if model == "gaussian_pto" else []),
             "--smoke",
             "--epochs",
@@ -32,6 +33,8 @@ def test_training_log_and_plot(tmp_path, model, stage):
     folders = list((tmp_path / "outputs").iterdir())
     assert len(folders) == 1
     name = model if model in {"gaussian_pto", "equal_weight"} else f"{model}_e2e"
+    if model == "gaussian_ensemble":
+        name = "gaussian_e2e_ensemble2"
     assert folders[0].name.endswith(f"_{name}")
     assert folders[0].name[:10].count("-") == 2
     assert (folders[0] / f"{name}.csv").is_file()
@@ -54,6 +57,9 @@ def test_training_log_and_plot(tmp_path, model, stage):
         expected = []
     if model == "gaussian_pto":
         expected = expected[:2]
+    if model == "gaussian_ensemble":
+        expected *= 2
+        assert {r["member"] for r in epochs} == {1, 2}
     assert [(r["stage"], r["epoch"]) for r in epochs] == expected
     for r in epochs:
         assert r["quarter"] == "2014-01-01"

@@ -16,6 +16,13 @@ import numpy as np
 import torch
 
 from btlight.data.panel import DynamicPanel
+from btlight.ml.model.ensemble import (
+    GaussianEnsemble,
+    allocation_factor,
+    marginal_quantile,
+    mixture_moments,
+    mixture_nll,
+)
 from btlight.ml.model.return_predictor import (
     GaussianReturnPredictor,
     ReturnPredictor,
@@ -254,6 +261,7 @@ def run(
     first_test="2014-01-01",
     smoke=False,
     prediction="point",
+    members=1,
     finetune=True,
     initial_variance=1e-4,
     variance_floor=1e-8,
@@ -264,6 +272,10 @@ def run(
     log=None,
 ):
     dynamic = isinstance(panel, DynamicPanel)
+    if isinstance(members, bool) or not isinstance(members, int) or members < 1:
+        raise ValueError("members must be a positive integer")
+    if members != 1 and prediction != "gaussian":
+        raise ValueError("multiple members require Gaussian prediction")
     if prediction not in {"point", "gaussian", "equal_weight"}:
         raise ValueError("prediction must be point, gaussian or equal_weight")
     if not math.isfinite(cost) or cost < 0:
@@ -301,10 +313,13 @@ def run(
             covariance_model=(
                 None
                 if equal_weight
-                else ("historical-correlation" if probabilistic and not dynamic else "diagonal")
+                else ("historical-correlation" if probabilistic and not dynamic
+                      else "diagonal-plus-low-rank" if members > 1 else "diagonal")
             ),
             asset_cap=None if equal_weight else 0.1,
             seed=7,
+            members=members,
+            member_seeds=list(range(7, 7 + members)),
             dtype="float64",
             torch_threads=1,
             solver=None if equal_weight else "Clarabel",
@@ -332,12 +347,18 @@ def run(
 
     @lru_cache(maxsize=4)
     def allocation_layer(n):
-        return PortfolioLayer(n, risk_aversion, risk=risk, cost=cost, diagonal=dynamic)
+        return PortfolioLayer(n, risk_aversion, risk=risk, cost=cost, diagonal=dynamic,
+                              disagreement_rank=members if dynamic and members > 1 else 0)
 
     layer = (
         None
         if equal_weight
         else allocation_layer(int(panel.offsets[1]) if dynamic else len(panel.assets))
+    )
+    training_layer = (
+        PortfolioLayer(int(panel.offsets[1]) if dynamic else len(panel.assets),
+                       risk_aversion, risk=risk, cost=cost, diagonal=dynamic)
+        if members > 1 else layer
     )
     records = []
     distribution_records = []
@@ -392,38 +413,55 @@ def run(
             f"{quarter}: {schedule} ({prediction})",
             flush=True,
         )
-        if pretrain:
-            fit(
-                model,
-                panel,
-                train,
-                val,
-                factors,
-                layer,
-                epochs,
-                pretraining,
-                correlations=correlations,
-                nll_weight=nll_weight,
-                executed_exits=executed_exits,
-                log=log,
-                quarter=quarter,
-            )
-        if strategy == "e2e":
-            fit(
-                model,
-                panel,
-                train,
-                val,
-                factors,
-                layer,
-                epochs,
-                "e2e",
-                correlations=correlations,
-                nll_weight=nll_weight,
-                executed_exits=executed_exits,
-                log=log,
-                quarter=quarter,
-            )
+        fitted = []
+        for member in range(members):
+            seed = 7 + member
+            if members > 1:
+                torch.manual_seed(seed)
+                model = GaussianReturnPredictor(
+                    panel.features.shape[-1], initial_variance=initial_variance,
+                    variance_floor=variance_floor,
+                ).double()
+
+            def member_log(event, **fields):
+                if log:
+                    log(event, member=member + 1, seed=seed, **fields)
+
+            if pretrain:
+                fit(
+                    model,
+                    panel,
+                    train,
+                    val,
+                    factors,
+                    training_layer,
+                    epochs,
+                    pretraining,
+                    correlations=correlations,
+                    nll_weight=nll_weight,
+                    executed_exits=executed_exits,
+                    log=member_log,
+                    quarter=quarter,
+                )
+            if strategy == "e2e":
+                fit(
+                    model,
+                    panel,
+                    train,
+                    val,
+                    factors,
+                    training_layer,
+                    epochs,
+                    "e2e",
+                    correlations=correlations,
+                    nll_weight=nll_weight,
+                    executed_exits=executed_exits,
+                    log=member_log,
+                    quarter=quarter,
+                )
+            fitted.append(model)
+        if members > 1:
+            model = GaussianEnsemble(fitted).eval()
 
         if log:
             log("test_start", quarter=quarter, dates=len(test))
@@ -448,42 +486,66 @@ def run(
                     if not equal_weight:
                         allocator = allocation_layer(len(current_ids))
 
+                disagreement = None
+                components = None
                 if equal_weight:
                     weights = torch.full_like(previous, 1 / len(features))
                 elif probabilistic:
-                    distribution = (
-                        dynamic_distribution(model, features)
-                        if dynamic
-                        else model.predict_distribution(features, correlations[t])
-                    )
-                    mu = distribution.mean
-                    allocation_factor = (
-                        distribution.stddev if dynamic else distribution.scale_tril.T
-                    )
+                    if members > 1:
+                        components = model.predict_components(
+                            features, None if dynamic else correlations[t]
+                        )
+                        mu, within, disagreement = mixture_moments(components)
+                        allocation_risk = (
+                            within.sqrt() if dynamic
+                            else allocation_factor(components, disagreement)
+                        )
+                    else:
+                        distribution = (
+                            dynamic_distribution(model, features)
+                            if dynamic else model.predict_distribution(features, correlations[t])
+                        )
+                        mu = distribution.mean
+                        allocation_risk = distribution.stddev if dynamic else distribution.scale_tril.T
+                    allocation_factor_value = allocation_risk
                 else:
                     mu = model(features)
-                    allocation_factor = (
+                    allocation_factor_value = (
                         torch.as_tensor(panel.risk_variance[sl], dtype=torch.float64).sqrt()
                         if dynamic
                         else factors[t]
                     )
 
                 if not equal_weight:
-                    weights = allocator(mu, allocation_factor, previous)
+                    weights = (
+                        allocator(mu, allocation_factor_value, previous, disagreement)
+                        if dynamic and members > 1
+                        else allocator(mu, allocation_factor_value, previous)
+                    )
                 if probabilistic:
                     realized = torch.tensor(panel.targets[sl], dtype=torch.float64)
-                    nll = gaussian_nll(distribution, realized).item()
-                    standardized = (realized - mu) / distribution.stddev
-                    coverage = (standardized.abs() <= 1.959963984540054).double().mean().item()
+                    if components is not None:
+                        nll = mixture_nll(components, realized).item()
+                        lower = marginal_quantile(components, 0.025)
+                        upper = marginal_quantile(components, 0.975)
+                        coverage = ((realized >= lower) & (realized <= upper)).double().mean().item()
+                        variance = within + disagreement.square().sum(0)
+                    else:
+                        nll = gaussian_nll(distribution, realized).item()
+                        standardized = (realized - mu) / distribution.stddev
+                        coverage = (standardized.abs() <= 1.959963984540054).double().mean().item()
+                        variance = distribution.variance
                     forecast_scores.append((nll, coverage))
                     if distribution_output is not None:
                         distribution_records.append(
                             (
                                 t,
                                 mu.numpy(),
-                                distribution.variance.numpy(),
-                                allocation_factor.numpy(),
+                                variance.numpy(),
+                                allocation_factor_value.numpy(),
                                 weights.numpy(),
+                                np.stack([d.mean.numpy() for d in components]) if components else mu.numpy()[None],
+                                np.stack([d.variance.numpy() for d in components]) if components else variance.numpy()[None],
                             )
                         )
 
@@ -506,11 +568,20 @@ def run(
             offsets=np.r_[0, np.cumsum([len(r[1]) for r in distribution_records])],
             asset_index=np.concatenate([panel.asset_index[panel.day(t)] for t in ids]),
             assets=panel.assets,
+            member_mean=np.concatenate([r[5] for r in distribution_records], axis=1),
+            member_variance=np.concatenate([r[6] for r in distribution_records], axis=1),
+            member_seeds=np.arange(7, 7 + members),
+            mixture_weights=np.full(members, 1 / members),
+            nll_per_asset=np.array(forecast_scores)[:, 0],
             mean=np.concatenate([r[1] for r in distribution_records]),
             variance=np.concatenate([r[2] for r in distribution_records]),
+            within_variance=np.concatenate([r[6].mean(0) for r in distribution_records]),
+            disagreement_factor=np.concatenate([
+                (r[5] - r[1]) / math.sqrt(members) for r in distribution_records
+            ], axis=1),
             weights=np.concatenate([r[4] for r in distribution_records]),
             targets=np.concatenate([panel.targets[panel.day(t)] for t in ids]),
-            interpretation=f"dynamic Gaussian {strategy.upper()}; diagonal covariance; confirmed exits only",
+            interpretation=f"dynamic Gaussian {strategy.upper()}; diagonal member covariance plus ensemble disagreement; confirmed exits only",
         )
     elif distribution_output is not None:
         path = Path(distribution_output)
@@ -521,8 +592,16 @@ def run(
             dates=panel.dates[ids],
             label_end=panel.label_end[ids],
             assets=panel.assets,
+            member_mean=np.stack([r[5] for r in distribution_records]),
+            member_variance=np.stack([r[6] for r in distribution_records]),
+            member_seeds=np.arange(7, 7 + members),
+            mixture_weights=np.full(members, 1 / members),
             mean=np.stack([r[1] for r in distribution_records]),
             variance=np.stack([r[2] for r in distribution_records]),
+            within_variance=np.stack([r[6].mean(0) for r in distribution_records]),
+            disagreement_factor=np.stack([
+                (r[5] - r[1]) / math.sqrt(members) for r in distribution_records
+            ]),
             covariance_factor=np.stack([r[3] for r in distribution_records]),
             weights=np.stack([r[4] for r in distribution_records]),
             targets=panel.targets[ids],
@@ -531,13 +610,15 @@ def run(
             nll_weight=nll_weight if strategy == "e2e" else 0.0,
             initial_variance=initial_variance,
             variance_floor=variance_floor,
-            interpretation="conditional Gaussian panel-target returns; no parameter posterior",
+            interpretation="Gaussian mixture panel-target returns; no parameter posterior",
         )
         print(f"Saved return-distribution diagnostics to {path}")
 
     model_name = "Wang E2E" if finetune else "Point PTO"
     if probabilistic:
         model_name = f"Gaussian returns {strategy.upper()}"
+        if members > 1:
+            model_name += f" ensemble ({members})"
     if equal_weight:
         model_name = "Equal weight"
     result = summarize(panel, records).assign(
@@ -552,11 +633,12 @@ def run(
     if probabilistic:
         result = result.assign(
             prediction=prediction,
+            members=members,
             nll_weight=nll_weight if strategy == "e2e" else 0.0,
             initial_variance=initial_variance,
             variance_floor=variance_floor,
             correlation_shrinkage=0.0 if dynamic else correlation_shrinkage,
-            covariance_model="diagonal" if dynamic else "historical-correlation",
+            covariance_model=("diagonal-plus-low-rank" if members > 1 else "diagonal") if dynamic else "historical-correlation",
             test_nll_per_asset=np.mean(forecast_scores, axis=0)[0],
             marginal_coverage_95=np.mean(forecast_scores, axis=0)[1],
         )

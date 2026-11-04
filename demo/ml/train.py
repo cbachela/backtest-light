@@ -33,6 +33,7 @@ def main():
         choices=["baseline", "gaussian", "equal_weight"],
         default="gaussian",
     )
+    parser.add_argument("--members", type=int, default=1, help="Gaussian ensemble size (default 1)")
     parser.add_argument("--no-e2e", action="store_true", help="Train forecasts only, then allocate")
     parser.add_argument("--risk-aversion", type=float, default=1.0)
     parser.add_argument("--risk", choices=["sd", "variance"])
@@ -50,12 +51,16 @@ def main():
         if args.model == "equal_weight"
         else f"{args.model}_{'pto' if args.no_e2e else 'e2e'}"
     )
+    if args.members > 1:
+        name += f"_ensemble{args.members}"
     stamp = datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S-%f_%z")
     output = Path("outputs") / f"{stamp}_{name}" / f"{name}.csv"
     distribution_output = output.with_suffix(".npz") if args.prediction == "gaussian" else None
 
     # Model constants live in Python; the CLI controls the experiment only.
     args.risk = args.risk or ("variance" if args.prediction == "gaussian" else "sd")
+    if args.members < 1 or (args.members != 1 and args.model != "gaussian"):
+        parser.error("members must be positive; multiple members require --model gaussian")
     if args.epochs < 1:
         parser.error("epochs must be positive")
     if args.prediction == "gaussian" and args.risk != "variance":
@@ -98,6 +103,7 @@ def main():
                 pretrain=True,  # Set False to train E2E from random initialization.
                 epochs=min(args.epochs, 2) if args.smoke else args.epochs,
                 prediction=args.prediction,
+                members=args.members,
                 finetune=not args.no_e2e,
                 risk_aversion=args.risk_aversion,
                 risk=args.risk,

@@ -24,6 +24,7 @@ log are saved in a dated run folder under `outputs/`.
 | `demo/ml/train.py` | Experiment entry point and command-line options |
 | `src/btlight/ml/training/e2e.py` | Walk-forward training and held-out evaluation |
 | `src/btlight/ml/model/return_predictor.py` | Point and Gaussian return networks |
+| `src/btlight/ml/model/ensemble.py` | Gaussian mixture scoring and ensemble moments |
 | `src/btlight/optimization/differentiable.py` | Differentiable portfolio allocation and loss |
 | `src/btlight/ml/training/portfolio_data.py` | Splits, risk estimates, holdings alignment, and results |
 | `src/btlight/data/daily.py` | Daily features, targets, and panel preparation |
@@ -89,6 +90,23 @@ Useful options:
 `--no-e2e` also supports the point baseline. To skip pretraining for E2E, set
 `pretrain=False` in the demo's `run()` call. Model constants are set in Python.
 
+## Ensembles
+
+Add `--members 5` to a Gaussian command to train five independently initialized
+networks per window. The default is one network; `--no-e2e` also works with ensembles.
+
+```sh
+uv run --no-sync python demo/ml/train.py --model gaussian --members 5 \
+  --panel data/daily.npz --exit-audit data/daily.exits.parquet \
+  --first-test 2024-01-01 --epochs 100
+```
+
+Members train separately on the same dates. Their equally weighted mixture supplies
+one portfolio using average member covariance plus covariance from mean disagreement.
+Forecast scores use the mixture density and marginal mixture intervals. Logs identify
+each member and seed; NPZ exports include member forecasts. Training time grows roughly
+with the member count. Disagreement is not a calibrated parameter posterior.
+
 ## Training logs
 
 By default, each run creates a folder such as
@@ -108,8 +126,8 @@ training is in progress.
 
 ## Interpretation
 
-Changing-universe Gaussian portfolios use diagonal covariance; fixed panels can
-use historical correlations. Predicted variances describe returns, not parameter
+Changing-universe Gaussian members use diagonal covariance; ensembles also include
+covariance from member disagreement. Fixed panels can use historical correlations. Predicted variances describe returns, not parameter
 uncertainty. Portfolio dates require complete, aligned outcomes and confirmed exits.
 
 Market/JKP targets are supplied-price returns; currency and total-return conventions

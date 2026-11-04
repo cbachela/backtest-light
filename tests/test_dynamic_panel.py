@@ -212,7 +212,8 @@ def test_exit_lookup_requires_matching_execution(tmp_path):
 
 @pytest.mark.parametrize(
     "prediction,strategy",
-    [("point", "e2e"), ("gaussian", "e2e"), ("gaussian", "pto"), ("point", "equal_weight")],
+    [("point", "e2e"), ("gaussian", "e2e"), ("gaussian", "pto"),
+     ("gaussian", "ensemble_e2e"), ("gaussian", "ensemble_pto"), ("point", "equal_weight")],
 )
 def test_dynamic_e2e_with_confirmed_exits(tmp_path, prediction, strategy):
     from btlight.ml.training.e2e import run
@@ -234,7 +235,8 @@ def test_dynamic_e2e_with_confirmed_exits(tmp_path, prediction, strategy):
         first_test="2021-01-01",
         risk="variance",
         prediction="equal_weight" if strategy == "equal_weight" else prediction,
-        finetune=strategy != "pto",
+        finetune=not strategy.endswith("pto"),
+        members=2 if strategy.startswith("ensemble") else 1,
         cost=0.001,
         executed_exits=exits,
         distribution_output=(tmp_path / "dynamic.npz" if prediction == "gaussian" else None),

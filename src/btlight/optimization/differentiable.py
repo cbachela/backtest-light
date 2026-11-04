@@ -21,6 +21,7 @@ class PortfolioLayer(torch.nn.Module):
         risk="variance",
         cost=0.0,
         diagonal=False,
+        disagreement_rank=0,
     ):
         super().__init__()
         if risk not in {"variance", "sd"}:
@@ -36,19 +37,27 @@ class PortfolioLayer(torch.nn.Module):
         previous = cp.Parameter(assets)
         # Factor.T @ factor = covariance makes the problem DPP-compliant.
         exposure = cp.multiply(factor, w) if diagonal else factor @ w
+        disagreement = None
+        if disagreement_rank:
+            disagreement = cp.Parameter((disagreement_rank, assets))
+            exposure = cp.hstack([exposure, disagreement @ w])
         risk_term = cp.sum_squares(exposure) if risk == "variance" else cp.norm(exposure)
         # Minimize negative forecast utility; half the L1 change measures turnover.
         objective = -mu @ w + risk_aversion * risk_term + cost / 2 * cp.norm1(w - previous)
         # Require full investment, no short positions, and a per-asset weight cap.
         problem = cp.Problem(cp.Minimize(objective), [w >= 0, cp.sum(w) == 1, w <= cap])
-        self.solver = CvxpyLayer(problem, parameters=[mu, factor, previous], variables=[w])
+        parameters = [mu, factor, previous]
+        if disagreement is not None:
+            parameters.append(disagreement)
+        self.solver = CvxpyLayer(problem, parameters=parameters, variables=[w])
 
-    def forward(self, mu, factor, previous):
+    def forward(self, mu, factor, previous, disagreement=None):
         # CvxpyLayer differentiates the solution with respect to its inputs.
+        parameters = [mu, factor, previous]
+        if disagreement is not None:
+            parameters.append(disagreement)
         (weights,) = self.solver(
-            mu,
-            factor,
-            previous,
+            *parameters,
             solver_args={
                 "solve_method": "Clarabel",
                 "tol_gap_abs": 1e-9,
