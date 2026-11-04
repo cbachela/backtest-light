@@ -44,6 +44,7 @@ def test_training_log_and_plot(tmp_path, model, stage):
     assert records[0]["event"] == "experiment_start"
     assert records[-1]["event"] == "experiment_end"
     settings = next(r for r in records if r["event"] == "settings")
+    assert settings["risk"] == ("none" if model == "equal_weight" else "variance")
     assert settings["pretrain"] is (model != "equal_weight")
     assert settings["variance_floor"] == (1e-8 if model.startswith("gaussian") else None)
     epochs = [r for r in records if r["event"] == "epoch"]

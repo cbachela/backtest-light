@@ -40,7 +40,7 @@ def test_covariance_gradient_through_portfolio_matches_finite_differences():
     mu = torch.tensor([0.02, 0.01], dtype=torch.float64, requires_grad=True)
     variance = torch.tensor([0.04, 0.06], dtype=torch.float64, requires_grad=True)
     previous = torch.full((2,), 0.5, dtype=torch.float64)
-    layer = PortfolioLayer(2, cap=0.9, risk="variance")
+    layer = PortfolioLayer(2, cap=0.9)
 
     def allocate(mean, var):
         factor = (var.sqrt()[:, None] * chol).T
@@ -94,7 +94,6 @@ def test_gaussian_training_and_forecast_diagnostics(tmp_path):
         epochs=1,
         smoke=True,
         prediction="gaussian",
-        risk="variance",
         distribution_output=path,
     )
     assert result.observations.iloc[0] == 8
@@ -119,9 +118,3 @@ def test_gaussian_training_and_forecast_diagnostics(tmp_path):
         np.testing.assert_allclose(saved["weights"].sum(axis=1), 1, atol=1e-6)
         assert (saved["weights"] >= -1e-6).all()
         assert (saved["weights"] <= 0.1 + 1e-6).all()
-
-
-def test_gaussian_rejects_nonvariance_risk():
-    panel = synthetic_panel(periods=10)
-    with pytest.raises(ValueError, match="variance risk"):
-        run(panel, prediction="gaussian", risk="sd")

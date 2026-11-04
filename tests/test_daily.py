@@ -148,7 +148,6 @@ def test_parquet_index_collision_and_training(tmp_path):
     result = run(
         panel,
         prediction="gaussian",
-        risk="variance",
         pretrain=False,
         epochs=1,
         smoke=True,
@@ -321,7 +320,7 @@ def test_e2e_smoke_accepts_terminal_loss(tmp_path):
     panel, audit, _, exits, _ = prepare_daily(market, jkp, '2019-04-01', dates[-3], events)
     assert audit.target.eq(-1).sum() == 1
     exits.to_parquet(tmp_path / 'exits.parquet', index=False)
-    result = run(panel, prediction='gaussian', risk='variance', pretrain=False,
+    result = run(panel, prediction='gaussian', pretrain=False,
                  epochs=1, smoke=True, first_test='2021-01-01',
                  executed_exits=exit_lookup(panel, tmp_path / 'exits.parquet'))
     assert np.isfinite(result.test_nll_per_asset.iloc[0])

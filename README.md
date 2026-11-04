@@ -53,7 +53,9 @@ Use `--overwrite` to rebuild. Reviewed adjustments can be supplied with
 
 The models use quarterly walk-forward windows: 39 months for training, nine for
 validation, and three for testing. Learned portfolios are long-only, fully invested,
-and capped at 10% per asset.
+and capped at 10% per asset. All optimized portfolios use variance risk,
+with objective `-mu @ w + risk_aversion * (w.T @ covariance @ w)` plus the
+optional turnover penalty.
 
 Gaussian E2E predicts return means and variances. The point baseline predicts means
 and uses historical risk estimates. Both pretrain on forecast loss, then fine-tune
@@ -65,8 +67,8 @@ uv run --no-sync python demo/ml/train.py --model gaussian \
   --panel data/daily.npz --exit-audit data/daily.exits.parquet \
   --first-test 2024-01-01 --epochs 100
 
-# Point E2E, using variance risk for comparison
-uv run --no-sync python demo/ml/train.py --model baseline --risk variance \
+# Point E2E
+uv run --no-sync python demo/ml/train.py --model baseline \
   --panel data/daily.npz --exit-audit data/daily.exits.parquet \
   --first-test 2024-01-01 --epochs 100
 

@@ -104,7 +104,7 @@ def fit(
     @lru_cache(maxsize=4)
     def allocation_layer(n):
         return PortfolioLayer(
-            n, layer.risk_aversion, risk=layer.risk, cost=layer.cost, diagonal=True
+            n, layer.risk_aversion, cost=layer.cost, diagonal=True
         )
 
     def cross_section(t):
@@ -256,7 +256,6 @@ def run(
     epochs=100,
     pretrain=True,
     risk_aversion=1.0,
-    risk="sd",
     cost=0.0,
     first_test="2014-01-01",
     smoke=False,
@@ -287,8 +286,6 @@ def run(
     probabilistic = prediction == "gaussian" and not equal_weight
     pretrain = pretrain and not equal_weight
     if probabilistic:
-        if risk != "variance":
-            raise ValueError("Gaussian mode requires variance risk")
         if not math.isfinite(nll_weight) or nll_weight <= 0:
             raise ValueError("nll_weight must be finite and positive")
     if distribution_output is not None:
@@ -302,7 +299,7 @@ def run(
             finetune=finetune and not equal_weight,
             pretrain=pretrain,
             max_epochs=epochs,
-            risk="none" if equal_weight else risk,
+            risk="none" if equal_weight else "variance",
             risk_aversion=0.0 if equal_weight else risk_aversion,
             cost=cost,
             first_test=first_test,
@@ -347,7 +344,7 @@ def run(
 
     @lru_cache(maxsize=4)
     def allocation_layer(n):
-        return PortfolioLayer(n, risk_aversion, risk=risk, cost=cost, diagonal=dynamic,
+        return PortfolioLayer(n, risk_aversion, cost=cost, diagonal=dynamic,
                               disagreement_rank=members if dynamic and members > 1 else 0)
 
     layer = (
@@ -355,9 +352,10 @@ def run(
         if equal_weight
         else allocation_layer(int(panel.offsets[1]) if dynamic else len(panel.assets))
     )
+    # Members train through their own allocations; test forecasts are combined.
     training_layer = (
         PortfolioLayer(int(panel.offsets[1]) if dynamic else len(panel.assets),
-                       risk_aversion, risk=risk, cost=cost, diagonal=dynamic)
+                       risk_aversion, cost=cost, diagonal=dynamic)
         if members > 1 else layer
     )
     records = []
@@ -624,7 +622,7 @@ def run(
     result = summarize(panel, records).assign(
         model=model_name,
         strategy=strategy,
-        risk="none" if equal_weight else risk,
+        risk="none" if equal_weight else "variance",
         risk_aversion=0.0 if equal_weight else risk_aversion,
         cost=cost,
         smoke=smoke,

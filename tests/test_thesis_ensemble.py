@@ -50,6 +50,19 @@ def test_low_rank_allocation_matches_dense_and_has_gradients():
     multiplier = (inverse_mu.sum() - 2) / inverse_one.sum()
     exact = (inverse_mu - multiplier * inverse_one) / 2
     torch.testing.assert_close(weights, exact, atol=5e-5, rtol=2e-4)
+    def analytical(v, u):
+        covariance = torch.diag(v.square()) + u.T @ u
+        inverse_mu = torch.linalg.solve(covariance, mu)
+        inverse_one = torch.linalg.solve(covariance, torch.ones_like(mu))
+        multiplier = (inverse_mu.sum() - 2) / inverse_one.sum()
+        return (inverse_mu - multiplier * inverse_one) / 2
+
+    actual = torch.autograd.functional.jacobian(
+        lambda v, u: sparse(mu, v, previous, u), (scale, disagreement)
+    )
+    expected = torch.autograd.functional.jacobian(analytical, (scale, disagreement))
+    for actual_part, expected_part in zip(actual, expected):
+        torch.testing.assert_close(actual_part, expected_part, atol=1e-4, rtol=1e-3)
     assert torch.autograd.gradcheck(
         lambda v, u: sparse(mu, v, previous, u), (scale, disagreement),
         eps=1e-3, atol=2e-3, rtol=2e-2,
@@ -64,7 +77,7 @@ def test_fixed_ensemble_walk_forward(tmp_path, finetune):
     path = tmp_path / "forecasts.npz"
     events = []
     result = run(synthetic_panel(), epochs=1, smoke=True, prediction="gaussian",
-                 members=2, risk="variance", finetune=finetune,
+                 members=2, finetune=finetune,
                  distribution_output=path, log=lambda event, **kw: events.append((event, kw)))
     assert result.members.iloc[0] == 2
     assert np.isfinite(result.test_nll_per_asset.iloc[0])
@@ -77,3 +90,23 @@ def test_fixed_ensemble_walk_forward(tmp_path, finetune):
     epochs = [fields for event, fields in events if event == "epoch"]
     assert {r["member"] for r in epochs} == {1, 2}
     assert {r["seed"] for r in epochs} == {7, 8}
+
+
+def test_ensemble_reproducibility_and_invalid_settings(tmp_path):
+    from btlight.data.panel import synthetic_panel
+    from btlight.ml.training.e2e import run
+
+    panel = synthetic_panel()
+    settings = dict(epochs=1, smoke=True, prediction="gaussian", members=2,
+                    finetune=False)
+    first = run(panel, distribution_output=tmp_path / "first.npz", **settings)
+    second = run(panel, distribution_output=tmp_path / "second.npz", **settings)
+    np.testing.assert_allclose(first.test_nll_per_asset, second.test_nll_per_asset)
+    with np.load(tmp_path / "first.npz") as a, np.load(tmp_path / "second.npz") as b:
+        np.testing.assert_array_equal(a["member_mean"], b["member_mean"])
+        np.testing.assert_array_equal(a["weights"], b["weights"])
+    for invalid in (0, -1, 1.5, True):
+        with pytest.raises(ValueError, match="members"):
+            run(panel, members=invalid)
+    with pytest.raises(ValueError, match="Gaussian"):
+        run(panel, members=2)

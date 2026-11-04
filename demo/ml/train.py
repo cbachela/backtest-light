@@ -4,6 +4,7 @@
 --model equal_weight: provides a comparison without training or optimization.
 --no-e2e: trains forecasts only (PTO) for either learned model; 
 --cost sets the turnover cost coefficient. 
+Optimized portfolios use variance risk.
 
 The shared training loop is implemented in e2e.py.
 
@@ -36,7 +37,6 @@ def main():
     parser.add_argument("--members", type=int, default=1, help="Gaussian ensemble size (default 1)")
     parser.add_argument("--no-e2e", action="store_true", help="Train forecasts only, then allocate")
     parser.add_argument("--risk-aversion", type=float, default=1.0)
-    parser.add_argument("--risk", choices=["sd", "variance"])
     parser.add_argument("--cost", type=float, default=0.0)
     parser.add_argument("--first-test", help="First test quarter; default 2024-01-01 on real data")
     parser.add_argument(
@@ -58,13 +58,10 @@ def main():
     distribution_output = output.with_suffix(".npz") if args.prediction == "gaussian" else None
 
     # Model constants live in Python; the CLI controls the experiment only.
-    args.risk = args.risk or ("variance" if args.prediction == "gaussian" else "sd")
     if args.members < 1 or (args.members != 1 and args.model != "gaussian"):
         parser.error("members must be positive; multiple members require --model gaussian")
     if args.epochs < 1:
         parser.error("epochs must be positive")
-    if args.prediction == "gaussian" and args.risk != "variance":
-        parser.error("Gaussian forecasts require variance risk")
 
     # Use a fresh log for each run so partial progress survives interruption.
     log_path = output.with_suffix(".jsonl")
@@ -106,7 +103,6 @@ def main():
                 members=args.members,
                 finetune=not args.no_e2e,
                 risk_aversion=args.risk_aversion,
-                risk=args.risk,
                 cost=args.cost,
                 first_test=args.first_test
                 or ("2014-01-01" if args.smoke and not args.panel else "2024-01-01"),

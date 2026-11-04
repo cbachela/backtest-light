@@ -233,7 +233,6 @@ def test_dynamic_e2e_with_confirmed_exits(tmp_path, prediction, strategy):
         epochs=1,
         smoke=True,
         first_test="2021-01-01",
-        risk="variance",
         prediction="equal_weight" if strategy == "equal_weight" else prediction,
         finetune=not strategy.endswith("pto"),
         members=2 if strategy.startswith("ensemble") else 1,

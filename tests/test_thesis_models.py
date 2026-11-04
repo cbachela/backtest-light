@@ -34,17 +34,16 @@ def test_paper_example_and_gradient():
             weights = layer(mu, factor, previous)
             utilities.append(-layer.loss(weights, realized, factor, previous).item())
         np.testing.assert_allclose(utilities, expected, atol=1e-4)
-    for risk in ("variance", "sd"):
-        layer = PortfolioLayer(3, cap=0.8, risk=risk)
-        mu = torch.tensor([0.02, 0.03, 0.015], dtype=torch.float64, requires_grad=True)
-        factor = torch.eye(3, dtype=torch.float64) * 0.3
-        previous = torch.ones(3, dtype=torch.float64) / 3
-        assert torch.autograd.gradcheck(
-            lambda m: layer(m, factor, previous), (mu,), eps=1e-4, atol=2e-3, rtol=2e-2
-        )
-        weights = layer(mu, factor, previous)
-        assert weights.min() >= -1e-7 and weights.max() <= 0.8 + 1e-7
-        assert abs(weights.sum().item() - 1) < 1e-7
+    layer = PortfolioLayer(3, cap=0.8)
+    mu = torch.tensor([0.02, 0.03, 0.015], dtype=torch.float64, requires_grad=True)
+    factor = torch.eye(3, dtype=torch.float64) * 0.3
+    previous = torch.ones(3, dtype=torch.float64) / 3
+    assert torch.autograd.gradcheck(
+        lambda m: layer(m, factor, previous), (mu,), eps=1e-4, atol=2e-3, rtol=2e-2
+    )
+    weights = layer(mu, factor, previous)
+    assert weights.min() >= -1e-7 and weights.max() <= 0.8 + 1e-7
+    assert abs(weights.sum().item() - 1) < 1e-7
 
 
 def test_no_future_information():
@@ -60,6 +59,7 @@ def test_no_future_information():
 def test_e2e_runs():
     result = run(synthetic_panel(), epochs=1, smoke=True)
     assert result.observations.iloc[0] == 8
+    assert result.risk.iloc[0] == "variance"
     assert np.isfinite(result.select_dtypes(include="number").to_numpy()).all()
 
 
