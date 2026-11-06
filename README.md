@@ -29,7 +29,6 @@ log are saved in a dated run folder under `outputs/`.
 | `src/btlight/ml/training/portfolio_data.py` | Splits, risk estimates, holdings alignment, and results |
 | `src/btlight/data/daily.py` | Daily features, targets, and panel preparation |
 | `demo/ml/plot_loss.py` | Training and validation loss plots |
-| `demo/ml/thesis_tutorial.ipynb` | Simulated examples of prediction and E2E learning |
 
 ## Prepare data
 
