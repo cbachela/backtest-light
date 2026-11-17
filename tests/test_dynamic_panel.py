@@ -188,28 +188,6 @@ def test_diagonal_layer_matches_dense_and_differentiates():
     )
 
 
-def test_exit_lookup_requires_matching_execution(tmp_path):
-    from btlight.ml.training.portfolio_data import exit_lookup
-
-    p = synthetic_dynamic()
-    p.assets = np.array([f"{i}:01" for i in range(12)])
-    date = pd.Timestamp(p.dates[3])
-    entry = pd.Timestamp(p.entry_dates[p.day(3)][0])
-    audit = pd.DataFrame(
-        {
-            "gvkey": ["0", "1"],
-            "iid": ["01", "01"],
-            "decision_date": [date, date],
-            "execution_date": [entry, entry + pd.Timedelta(days=1)],
-            "reason": ["bottom_20pct"] * 2,
-            "status": ["price_available"] * 2,
-            "exit_price_eur": [10.0, 20.0],
-        }
-    )
-    audit.to_parquet(tmp_path / "exits.parquet")
-    assert exit_lookup(p, tmp_path / "exits.parquet")[3] == {0}
-
-
 @pytest.mark.parametrize(
     "prediction,strategy",
     [("point", "e2e"), ("gaussian", "e2e"), ("gaussian", "pto"),

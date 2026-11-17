@@ -21,7 +21,7 @@ from time import perf_counter
 
 from btlight.data.panel import DynamicPanel, load_data
 from btlight.ml.training.e2e import run
-from btlight.ml.training.portfolio_data import exit_lookup, save_results
+from btlight.ml.training.portfolio_data import membership_exits, save_results
 
 
 def main():
@@ -39,9 +39,6 @@ def main():
     parser.add_argument("--risk-aversion", type=float, default=1.0)
     parser.add_argument("--cost", type=float, default=0.0)
     parser.add_argument("--first-test", help="First test quarter; default 2024-01-01 on real data")
-    parser.add_argument(
-        "--exit-audit", type=Path, help="Audited eligibility exits with sale prices and dates"
-    )
     args = parser.parse_args()
 
     # Translate the CLI baseline name to the shared trainer's point model.
@@ -85,15 +82,11 @@ def main():
             model=args.model,
             command=sys.argv,
             panel=str(Path(args.panel).resolve()) if args.panel else "synthetic-seed-7",
-            exit_audit=str(args.exit_audit) if args.exit_audit else None,
             output=str(output),
             distribution_output=str(distribution_output) if distribution_output else None,
         )
         try:
-            # Load the panel and any confirmed exits before starting walk-forward training.
             panel = load_data(args.panel, args.smoke)
-            if args.exit_audit is not None and not isinstance(panel, DynamicPanel):
-                parser.error("exit-audit requires a changing-universe panel")
 
             result = run(
                 panel,
@@ -108,7 +101,7 @@ def main():
                 or ("2014-01-01" if args.smoke and not args.panel else "2024-01-01"),
                 smoke=args.smoke,
                 distribution_output=distribution_output,
-                executed_exits=exit_lookup(panel, args.exit_audit) if args.exit_audit else None,
+                executed_exits=membership_exits(panel) if isinstance(panel, DynamicPanel) else None,
                 log=log,
             )
             # Save the performance summary; Gaussian forecasts are exported by run().

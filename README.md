@@ -27,26 +27,25 @@ log are saved in a dated run folder under `outputs/`.
 | `src/btlight/ml/model/ensemble.py` | Gaussian mixture scoring and ensemble moments |
 | `src/btlight/optimization/differentiable.py` | Differentiable portfolio allocation and loss |
 | `src/btlight/ml/training/portfolio_data.py` | Splits, risk estimates, holdings alignment, and results |
-| `src/btlight/data/daily.py` | Daily features, targets, and panel preparation |
+| `src/btlight/data/jkp.py` | Monthly JKP features, targets, and panel preparation |
 | `demo/ml/plot_loss.py` | Training and validation loss plots |
 
 ## Prepare data
 
-For market/JKP data, provide a directory containing `market_data.parquet` and
-`df_jkp.parquet` in the format read by `read_sources()` in
-`src/btlight/data/daily.py`. Datasets are not included in the repository.
+The monthly panel is built from JKP alone (`df_jkp.parquet`). Signals are
+measured at each month-end and the target is the next month's USD excess return
+(`ret_exc_lead1m`). Datasets are not included in the repository.
 
 ```sh
-uv run --no-sync python demo/data/prepare_daily.py \
-  --source /path/to/market-and-jkp \
-  --start 2020-01-01 --end 2024-12-31 \
-  --output data/daily.npz
+uv run --no-sync python demo/data/prepare_jkp.py \
+  --source "data/market and jkp/df_jkp.parquet" \
+  --start 1990-12-31 --end 2025-12-31 \
+  --output data/monthly.npz
 ```
 
-Preparation saves the panel, settings, and audits, including `data/daily.exits.parquet`.
-Use `--overwrite` to rebuild. Reviewed adjustments can be supplied with
-`--split-corrections /path/to/corrections.parquet` and
-`--terminal-events /path/to/corporate_actions.parquet`.
+Preparation saves the panel, an audit and the settings (`.audit.parquet`, `.json`).
+Use `--overwrite` to rebuild. Companies leaving the universe are sold at the
+month-end rebalance, so no separate exit file is needed.
 
 ## Run experiments
 
@@ -63,22 +62,22 @@ through allocation. Gaussian E2E also retains an NLL term during fine-tuning.
 ```sh
 # Gaussian E2E
 uv run --no-sync python demo/ml/train.py --model gaussian \
-  --panel data/daily.npz --exit-audit data/daily.exits.parquet \
+  --panel data/monthly.npz \
   --first-test 2024-01-01 --epochs 100
 
 # Point E2E
 uv run --no-sync python demo/ml/train.py --model baseline \
-  --panel data/daily.npz --exit-audit data/daily.exits.parquet \
+  --panel data/monthly.npz \
   --first-test 2024-01-01 --epochs 100
 
 # Gaussian predict-then-optimize (PTO): NLL training followed by allocation
 uv run --no-sync python demo/ml/train.py --model gaussian --no-e2e \
-  --panel data/daily.npz --exit-audit data/daily.exits.parquet \
+  --panel data/monthly.npz \
   --first-test 2024-01-01 --epochs 100
 
 # Equal weights over the eligible assets, without training or optimization
 uv run --no-sync python demo/ml/train.py --model equal_weight \
-  --panel data/daily.npz --exit-audit data/daily.exits.parquet \
+  --panel data/monthly.npz \
   --first-test 2024-01-01
 ```
 
@@ -98,7 +97,7 @@ networks per window. The default is one network; `--no-e2e` also works with ense
 
 ```sh
 uv run --no-sync python demo/ml/train.py --model gaussian --members 5 \
-  --panel data/daily.npz --exit-audit data/daily.exits.parquet \
+  --panel data/monthly.npz \
   --first-test 2024-01-01 --epochs 100
 ```
 

@@ -47,67 +47,12 @@ def align_holdings(previous_ids, previous_weights, current_ids, executed_exits=(
     return aligned, exited
 
 
-def exit_lookup(panel, path):
-    """Match audited exits to the portfolio's actual rebalance close.
-
-    Accept aligned sales and explicit terminal distributions already booked in
-    panel returns. Terminal settlements can include labelled recovery assumptions.
-    Other delayed sales still require a pending order/valuation ledger.
-    """
-    events = pd.read_parquet(path)
-    if "asset" in events and "exit_price" in events:
-        allowed_reasons = {"daily_ineligible"}
-    else:
-        if not {"gvkey", "iid"}.issubset(events):
-            raise ValueError("exit audit needs asset IDs or gvkey/iid")
-        events["asset"] = events.gvkey.astype(str) + ":" + events.iid.astype(str)
-        events = events.rename(columns={"exit_price_eur": "exit_price"})
-        allowed_reasons = {"bottom_20pct"}
-    required = {
-        "asset",
-        "decision_date",
-        "execution_date",
-        "reason",
-        "status",
-        "exit_price",
+def membership_exits(panel):
+    """Monthly convention: companies leaving the universe are sold at the rebalance close."""
+    return {
+        t: set(panel.asset_index[panel.day(t - 1)]) - set(panel.asset_index[panel.day(t)])
+        for t in range(1, len(panel.dates))
     }
-    if not required.issubset(events):
-        raise ValueError("invalid exit audit")
-    if events.empty:
-        return {}
-    valid = events.reason.isin(allowed_reasons) & events.status.eq("price_available")
-    valid &= np.isfinite(events.exit_price) & events.exit_price.gt(0)
-    if "event_date" in events:
-        settled = events.reason.eq("corporate_action") & events.status.eq("terminal_settled")
-        settled &= events.event_date.notna() & events.event_date.le(events.execution_date)
-        settled &= np.isfinite(events.exit_price) & events.exit_price.ge(0)
-        valid |= settled
-    valid &= events.execution_date.gt(events.decision_date)
-    if "scheduled_date" in events:
-        # Delayed orders must not be booked as immediate exits from this decision.
-        valid &= events.execution_date.eq(events.scheduled_date)
-    events = events.loc[valid].copy()
-    lookup = {asset: i for i, asset in enumerate(panel.assets)}
-    events["asset_index"] = events.asset.map(lookup)
-    groups = {
-        pd.Timestamp(date): group for date, group in events.groupby("decision_date")
-    }
-    result = {}
-    for t, date in enumerate(panel.dates):
-        group = groups.get(pd.Timestamp(date))
-        if group is None:
-            continue
-        sl = panel.day(t)
-        entries = np.unique(panel.entry_dates[sl])
-        if len(entries) == 1:
-            result[t] = set(
-                group.loc[
-                    group.execution_date.eq(pd.Timestamp(entries[0])), "asset_index"
-                ]
-                .dropna()
-                .astype(int)
-            )
-    return result
 
 
 def covariance_factors(panel, lookback=252, floor=1e-8):
@@ -218,13 +163,16 @@ def summarize(panel, records):
     if not np.isfinite(raw).all() or np.any(raw <= -1):
         raise ValueError("invalid portfolio returns")
     wealth = np.r_[1.0, np.cumprod(1 + raw)]
+    # Monthly panels rebalance about every 30 days; daily panels about every trading day.
+    gap = np.median(np.diff(panel.dates).astype("timedelta64[D]").astype(int))
+    periods = 12 if gap >= 20 else 252
     return pd.DataFrame(
         [
             {
                 "observations": len(raw),
-                "annualized_return": raw.mean() * 252,
-                "annualized_excess_return": excess.mean() * 252,
-                "annualized_volatility": raw.std(ddof=1) * np.sqrt(252),
+                "annualized_return": raw.mean() * periods,
+                "annualized_excess_return": excess.mean() * periods,
+                "annualized_volatility": raw.std(ddof=1) * np.sqrt(periods),
                 "test_start": str(panel.dates[records[0][0]]),
                 "test_end": str(
                     panel.label_end[panel.day(records[-1][0])][0]
@@ -232,7 +180,7 @@ def summarize(panel, records):
                     else panel.label_end[records[-1][0]]
                 ),
                 "information_ratio": (
-                    excess.mean() / excess.std(ddof=1) * np.sqrt(252)
+                    excess.mean() / excess.std(ddof=1) * np.sqrt(periods)
                     if excess.std(ddof=1) > 0
                     else np.nan
                 ),
