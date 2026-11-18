@@ -84,6 +84,9 @@ uv run --no-sync python demo/ml/train.py --model equal_weight \
   --first-test 2006-01-01
 ```
 
+`make experiments` runs all five models (equal weight, Gaussian and point, each
+E2E and PTO) in parallel with default settings, saving to separate files.
+
 Useful options:
 
 - `--cost VALUE`: turnover cost coefficient (default `0`).
