@@ -1,4 +1,4 @@
-"""Train and evaluate portfolios in quarterly walk-forward windows.
+"""Train and evaluate portfolios in walk-forward windows.
 
 fit() handles forecast pretraining and E2E learning through the allocation layer.
 run() fits a fresh model per window, evaluates held-out dates, and summarizes
@@ -258,6 +258,9 @@ def run(
     risk_aversion=1.0,
     cost=0.0,
     first_test="2014-01-01",
+    train_months=39,
+    validation_months=9,
+    test_months=3,
     smoke=False,
     prediction="point",
     members=1,
@@ -327,9 +330,9 @@ def run(
             dates=len(panel.dates),
             data_start=str(panel.dates[0]),
             data_end=str(panel.dates[-1]),
-            train_months=39,
-            validation_months=9,
-            test_months=3,
+            train_months="expanding" if train_months is None else train_months,
+            validation_months=validation_months,
+            test_months=test_months,
         )
 
     # Historical risk scores portfolios; Gaussian forecasts supply allocation risk.
@@ -366,9 +369,14 @@ def run(
         if dynamic
         else torch.full((len(panel.assets),), 1 / len(panel.assets), dtype=torch.float64)
     )
-    # Test holdings persist across quarters even though each network is refitted.
+    # Test holdings persist across windows even though each network is refitted.
     previous_ids, previous_end = [], None
-    for quarter, train, val, test in experiment_splits(panel, first_test, factors, smoke):
+    windows = {
+        "train_months": train_months, "validation_months": validation_months, "test_months": test_months
+    }
+    for quarter, train, val, test in experiment_splits(
+        panel, first_test, factors, smoke, **windows
+    ):
         if dynamic:
             for ids in (train, val, test):
                 panel.validate_portfolio_dates(ids)

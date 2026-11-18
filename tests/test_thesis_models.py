@@ -56,6 +56,19 @@ def test_no_future_information():
     assert torch.equal(before, covariance_factors(panel)[300])
 
 
+def test_expanding_splits():
+    panel = synthetic_panel()
+    splits = list(rolling_splits(
+        panel, "2013-01-01", train_months=None, validation_months=12, test_months=12
+    ))
+    (_, train, val, test), (_, later_train, _, _) = splits[:2]
+    assert train[0] == later_train[0] == 0 and len(later_train) > len(train)
+    assert (panel.label_end[train] < np.datetime64("2012-01-01")).all()
+    assert (panel.label_end[val] < np.datetime64("2013-01-01")).all()
+    assert panel.dates[test[0]] >= np.datetime64("2013-01-01")
+    assert panel.dates[test[-1]] < np.datetime64("2014-01-01")
+
+
 def test_e2e_runs():
     result = run(synthetic_panel(), epochs=1, smoke=True)
     assert result.observations.iloc[0] == 8

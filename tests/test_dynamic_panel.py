@@ -219,7 +219,8 @@ def test_dynamic_e2e_with_confirmed_exits(tmp_path, prediction, strategy):
         distribution_output=(tmp_path / "dynamic.npz" if prediction == "gaussian" else None),
     )
     assert result.observations.iloc[0] == 8
-    assert np.isfinite(result.annualized_return.iloc[0])
+    assert np.isfinite(result.annualized_excess_return.iloc[0])
+    assert "sharpe_ratio" in result and "annualized_return" not in result
     if strategy == "equal_weight":
         from btlight.ml.training.portfolio_data import experiment_splits
 
@@ -234,7 +235,7 @@ def test_dynamic_e2e_with_confirmed_exits(tmp_path, prediction, strategy):
                            for i in current.keys() | previous.keys()) / 2
             returns.append(p.targets[sl].mean() - 0.001 * turnover)
             previous = current
-        assert result.annualized_return.iloc[0] == pytest.approx(np.mean(returns) * 252)
+        assert result.annualized_excess_return.iloc[0] == pytest.approx(np.mean(returns) * 252)
     if prediction == "gaussian":
         with np.load(tmp_path / "dynamic.npz", allow_pickle=False) as saved:
             assert len(np.unique(np.diff(saved["offsets"]))) > 1

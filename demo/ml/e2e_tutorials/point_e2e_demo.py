@@ -4,9 +4,9 @@ Run from the backtest-light repository root with:
     uv run --no-sync python demo/ml/point_e2e_demo.py
     
 This uses one synthetic cross-section (8 assets, 10 features). 
-The production  runner uses rolling chronological windows: 39 months for training,
-9 for validation, then 3 for testing, advancing by one quarter. Model is retrained 
-every quarter. The demo shows one training step and one E2E step on a single date.
+The production runner uses chronological windows: an expanding training window,
+60 months for validation, then 12 for testing, retraining model once a year.
+The demo shows one training step and one E2E step on a single date.
 
 See readme for the list of files that are used in the implementation.
 """

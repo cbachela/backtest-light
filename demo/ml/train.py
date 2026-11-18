@@ -38,7 +38,10 @@ def main():
     parser.add_argument("--no-e2e", action="store_true", help="Train forecasts only, then allocate")
     parser.add_argument("--risk-aversion", type=float, default=1.0)
     parser.add_argument("--cost", type=float, default=0.0)
-    parser.add_argument("--first-test", help="First test quarter; default 2024-01-01 on real data")
+    parser.add_argument("--first-test", help="First test month; default 2006-01-01 on real data")
+    parser.add_argument("--train-months", type=int, help="Rolling training window; default expanding")
+    parser.add_argument("--validation-months", type=int, default=60)
+    parser.add_argument("--test-months", type=int, default=12, help="Test months per retrain")
     args = parser.parse_args()
 
     # Translate the CLI baseline name to the shared trainer's point model.
@@ -87,6 +90,17 @@ def main():
         )
         try:
             panel = load_data(args.panel, args.smoke)
+            # The synthetic smoke panel is daily and short, so it keeps Wang's 39/9/3.
+            synthetic = args.smoke and not args.panel
+            windows = (
+                dict(train_months=39, validation_months=9, test_months=3)
+                if synthetic
+                else dict(
+                    train_months=args.train_months,
+                    validation_months=args.validation_months,
+                    test_months=args.test_months,
+                )
+            )
 
             result = run(
                 panel,
@@ -97,8 +111,8 @@ def main():
                 finetune=not args.no_e2e,
                 risk_aversion=args.risk_aversion,
                 cost=args.cost,
-                first_test=args.first_test
-                or ("2014-01-01" if args.smoke and not args.panel else "2024-01-01"),
+                first_test=args.first_test or ("2014-01-01" if synthetic else "2006-01-01"),
+                **windows,
                 smoke=args.smoke,
                 distribution_output=distribution_output,
                 executed_exits=membership_exits(panel) if isinstance(panel, DynamicPanel) else None,

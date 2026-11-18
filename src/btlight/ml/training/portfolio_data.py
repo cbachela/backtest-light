@@ -92,17 +92,29 @@ def correlation_factors(panel, lookback=252, shrinkage=0.1):
     return result
 
 
-def rolling_splits(panel, first_test, last_test=None):
-    """Wang et al., Section 4.1: 39/9/3 months; purge unavailable labels."""
+def rolling_splits(
+    panel, first_test, last_test=None, train_months=39, validation_months=9, test_months=3
+):
+    """Walk-forward splits; purge labels that end after a boundary.
+
+    Defaults are Wang et al. (Section 4.1, 39/9/3). train_months=None expands training
+    from the first panel date, as in Gu, Kelly and Xiu (2020) for monthly data.
+    """
     start = pd.Timestamp(first_test)
-    if start.day != 1 or start.month not in (1, 4, 7, 10):
-        raise ValueError("first_test must be a calendar quarter start")
+    if start.day != 1:
+        raise ValueError("first_test must be the first day of a month")
+    if (train_months is not None and train_months < 1) or min(validation_months, test_months) < 1:
+        raise ValueError("window lengths must be positive")
     end = pd.Timestamp(last_test) if last_test else pd.Timestamp(panel.dates[-1])
     while start <= end:
-        train_start = np.datetime64(start - pd.DateOffset(months=48), "D")
-        val_start = np.datetime64(start - pd.DateOffset(months=9), "D")
+        val_start = np.datetime64(start - pd.DateOffset(months=validation_months), "D")
+        train_start = (
+            panel.dates[0]
+            if train_months is None
+            else np.datetime64(start - pd.DateOffset(months=train_months + validation_months), "D")
+        )
         test_start = np.datetime64(start, "D")
-        test_end = np.datetime64(start + pd.DateOffset(months=3), "D")
+        test_end = np.datetime64(start + pd.DateOffset(months=test_months), "D")
         d = panel.dates
         if isinstance(panel, DynamicPanel):
             # Fail before purging; unknown outcomes must not silently remove dates.
@@ -121,12 +133,12 @@ def rolling_splits(panel, first_test, last_test=None):
         test = np.flatnonzero((d >= test_start) & (d < test_end))
         if all(len(x) for x in (train, val, test)):
             yield str(start.date()), train, val, test
-        start += pd.DateOffset(months=3)
+        start += pd.DateOffset(months=test_months)
 
 
-def experiment_splits(panel, first_test, factors, smoke=False):
+def experiment_splits(panel, first_test, factors, smoke=False, **windows):
     found = False
-    for quarter, train, val, test in rolling_splits(panel, first_test):
+    for quarter, train, val, test in rolling_splits(panel, first_test, **windows):
         train, val, test = [
             np.array([t for t in ids if t in factors]) for ids in (train, val, test)
         ]
@@ -162,6 +174,7 @@ def summarize(panel, records):
     )
     if not np.isfinite(raw).all() or np.any(raw <= -1):
         raise ValueError("invalid portfolio returns")
+    # Dynamic (JKP) targets are excess returns, so this wealth path is excess wealth.
     wealth = np.r_[1.0, np.cumprod(1 + raw)]
     # Monthly panels rebalance about every 30 days; daily panels about every trading day.
     gap = np.median(np.diff(panel.dates).astype("timedelta64[D]").astype(int))
@@ -187,11 +200,13 @@ def summarize(panel, records):
                 "max_drawdown": (1 - wealth / np.maximum.accumulate(wealth)).max(),
             }
         ]
-    ).rename(
+    ).drop(columns=["annualized_excess_return"] if dynamic else []).rename(
         columns=(
             {
-                "annualized_excess_return": "annualized_target_return",
-                "information_ratio": "raw_return_to_volatility",
+                "annualized_return": "annualized_excess_return",
+                "annualized_volatility": "annualized_excess_volatility",
+                "information_ratio": "sharpe_ratio",
+                "max_drawdown": "max_drawdown_excess",
             }
             if dynamic
             else {}

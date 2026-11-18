@@ -49,8 +49,11 @@ month-end rebalance, so no separate exit file is needed.
 
 ## Run experiments
 
-The models use quarterly walk-forward windows: 39 months for training, nine for
-validation, and three for testing. Learned portfolios are long-only, fully invested,
+The models use annual walk-forward windows on the monthly panel: an expanding
+training window from the first panel date, 60 months for validation and 12 for
+testing (`--train-months`, `--validation-months`, `--test-months`). Training labels
+that end after the validation start, and validation labels that end after the test
+start, are purged. The default first test month is 2006-01-01. Learned portfolios are long-only, fully invested,
 and capped at 10% per asset. All optimized portfolios use variance risk,
 with objective `-mu @ w + risk_aversion * (w.T @ covariance @ w)` plus the
 optional turnover penalty.
@@ -63,22 +66,22 @@ through allocation. Gaussian E2E also retains an NLL term during fine-tuning.
 # Gaussian E2E
 uv run --no-sync python demo/ml/train.py --model gaussian \
   --panel data/monthly.npz \
-  --first-test 2024-01-01 --epochs 100
+  --first-test 2006-01-01 --epochs 100
 
 # Point E2E
 uv run --no-sync python demo/ml/train.py --model baseline \
   --panel data/monthly.npz \
-  --first-test 2024-01-01 --epochs 100
+  --first-test 2006-01-01 --epochs 100
 
 # Gaussian predict-then-optimize (PTO): NLL training followed by allocation
 uv run --no-sync python demo/ml/train.py --model gaussian --no-e2e \
   --panel data/monthly.npz \
-  --first-test 2024-01-01 --epochs 100
+  --first-test 2006-01-01 --epochs 100
 
 # Equal weights over the eligible assets, without training or optimization
 uv run --no-sync python demo/ml/train.py --model equal_weight \
   --panel data/monthly.npz \
-  --first-test 2024-01-01
+  --first-test 2006-01-01
 ```
 
 Useful options:
@@ -98,7 +101,7 @@ networks per window. The default is one network; `--no-e2e` also works with ense
 ```sh
 uv run --no-sync python demo/ml/train.py --model gaussian --members 5 \
   --panel data/monthly.npz \
-  --first-test 2024-01-01 --epochs 100
+  --first-test 2006-01-01 --epochs 100
 ```
 
 Members train separately on the same dates. Their equally weighted mixture supplies
