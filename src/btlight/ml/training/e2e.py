@@ -45,6 +45,32 @@ from btlight.optimization.differentiable import PortfolioLayer
 
 # Illustrative one-way cost (10 basis points) for the after-cost return column.
 NET_COST = 1e-3
+# Assumed rank skill for scaling standardized means (Grinold: alpha = IC x vol x score).
+ALPHA_IC = 0.05
+
+
+def asset_volatility(factor):
+    """Per-asset volatility from a diagonal vector or a factor with cov = F^T F."""
+    return factor if factor.dim() == 1 else factor.norm(dim=0)
+
+
+def allocation_inputs(mu, factor, reference, disagreement=None, vol_anchor=True):
+    """Fix the scale of means and risk the allocator sees; only relative forecasts remain.
+
+    With sum(w) = 1, scaling mu by k acts like gamma / k and scaling all sigma by k like
+    gamma / k^2, so E2E could otherwise tune its own risk aversion. `reference` is the
+    historical risk factor; it sets both levels. Plain torch ops keep gradients.
+    """
+    level = asset_volatility(reference).median()
+    # Variance epsilon keeps constant-forecast dates finite, including gradients.
+    scale = ALPHA_IC * level / (mu.var(correction=0) + 1e-16).sqrt()
+    mu = (mu - mu.mean()) * scale
+    if vol_anchor:
+        factor = factor * (level / asset_volatility(factor).median())
+    if disagreement is not None:
+        # Member means are in mean units, so they follow the mean rescaling.
+        disagreement = disagreement * scale
+    return mu, factor, disagreement
 
 
 def dynamic_distribution(model, features):
@@ -67,6 +93,7 @@ def fit(
     executed_exits=None,
     log=None,
     window=None,
+    vol_anchor=True,
 ):
     """Warm start or fine-tune the shared network on date cross-sections.
 
@@ -189,7 +216,10 @@ def fit(
                         distribution.stddev if dynamic else distribution.scale_tril.T
                     )
 
-                weights = allocator(predicted, allocation_factor, previous)
+                mu_alloc, allocation_factor, _ = allocation_inputs(
+                    predicted, allocation_factor, factor, vol_anchor=vol_anchor
+                )
+                weights = allocator(mu_alloc, allocation_factor, previous)
                 # Score risk independently of the covariance predicted for allocation.
                 terms = allocator.loss_terms(weights, y, factor, previous)
                 terms["cost_term"] = terms["cost_term"] + allocator.cost / 2 * exit_weight
@@ -289,6 +319,7 @@ def run(
     distribution_output=None,
     executed_exits=None,
     log=None,
+    vol_anchor=True,
 ):
     dynamic = isinstance(panel, DynamicPanel)
     if isinstance(members, bool) or not isinstance(members, int) or members < 1:
@@ -323,6 +354,8 @@ def run(
             pretrain=pretrain,
             max_epochs=epochs,
             risk_aversion=0.0 if equal_weight else risk_aversion,
+            alpha_ic=None if equal_weight else ALPHA_IC,
+            vol_anchor=probabilistic and vol_anchor,
             cost=cost,
             first_test=first_test,
             initial_variance=initial_variance if probabilistic else None,
@@ -471,6 +504,7 @@ def run(
                     executed_exits=executed_exits,
                     log=member_log,
                     window=window,
+                    vol_anchor=vol_anchor,
                 )
             if strategy == "e2e":
                 fit(
@@ -487,6 +521,7 @@ def run(
                     executed_exits=executed_exits,
                     log=member_log,
                     window=window,
+                    vol_anchor=vol_anchor,
                 )
             fitted.append(model)
         if members > 1:
@@ -545,10 +580,20 @@ def run(
                     )
 
                 if not equal_weight:
+                    # Allocation uses rescaled inputs; raw mu stays in scores and exports.
+                    reference = (
+                        torch.as_tensor(panel.risk_variance[sl], dtype=torch.float64).sqrt()
+                        if dynamic
+                        else factors[t]
+                    )
+                    mu_alloc, factor_alloc, disagreement_alloc = allocation_inputs(
+                        mu, allocation_factor_value, reference,
+                        disagreement if dynamic else None, vol_anchor,
+                    )
                     weights = (
-                        allocator(mu, allocation_factor_value, previous, disagreement)
+                        allocator(mu_alloc, factor_alloc, previous, disagreement_alloc)
                         if dynamic and members > 1
-                        else allocator(mu, allocation_factor_value, previous)
+                        else allocator(mu_alloc, factor_alloc, previous)
                     )
                 if probabilistic:
                     realized = torch.tensor(panel.targets[sl], dtype=torch.float64)
@@ -674,6 +719,8 @@ def run(
         model=model_name,
         strategy=strategy,
         risk_aversion=0.0 if equal_weight else risk_aversion,
+        alpha_ic=None if equal_weight else ALPHA_IC,
+        vol_anchor=probabilistic and vol_anchor,
         cost=cost,
         smoke=smoke,
         pretrain=pretrain,

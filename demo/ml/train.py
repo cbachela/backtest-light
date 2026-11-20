@@ -25,6 +25,7 @@ import pandas as pd
 from btlight.data.panel import DynamicPanel, load_data
 from btlight.ml.training.e2e import run
 from btlight.ml.training.portfolio_data import membership_exits, save_results
+from plot_results import plot_run
 
 
 def git_commit():
@@ -59,6 +60,10 @@ def main():
     parser.add_argument("--no-e2e", action="store_true", help="Train forecasts only, then allocate")
     parser.add_argument("--risk-aversion", type=float, default=1.0)
     parser.add_argument("--cost", type=float, default=0.0)
+    parser.add_argument(
+        "--no-vol-anchor", action="store_true",
+        help="Ablation: let Gaussian volatility levels reach the allocator unscaled",
+    )
     parser.add_argument("--first-test", help="First test month; default 2006-01-01 on real data")
     parser.add_argument("--train-months", type=int, help="Rolling training window; default expanding")
     parser.add_argument("--validation-months", type=int, default=60)
@@ -139,6 +144,7 @@ def main():
                 finetune=not args.no_e2e,
                 risk_aversion=args.risk_aversion,
                 cost=args.cost,
+                vol_anchor=not args.no_vol_anchor,
                 first_test=args.first_test or ("2014-01-01" if synthetic else "2006-01-01"),
                 **windows,
                 smoke=args.smoke,
@@ -148,9 +154,13 @@ def main():
             )
             # Save the performance summary; Gaussian forecasts are exported by run().
             windows = result.attrs.get("windows", [])
+            returns = result.attrs["returns"]
             result = result.assign(git_commit=commit, run_folder=output.parent.name)
             save_results([result], output, args.panel or "synthetic-seed-7")
             pd.DataFrame(windows).to_csv(windows_output, index=False)
+            returns_output = output.with_name(f"{name}_returns.csv")
+            returns.to_csv(returns_output, index=False)
+            plot_run(returns_output, output.with_name(f"{name}_results.png"))
         except BaseException as error:
             log(
                 "run_end",
