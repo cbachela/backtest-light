@@ -369,7 +369,6 @@ def run(
                       else "diagonal-plus-low-rank" if members > 1 else "diagonal")
             ),
             asset_cap=None if equal_weight else 0.1,
-            seed=7,
             members=members,
             member_seeds=list(range(7, 7 + members)),
             dtype="float64",

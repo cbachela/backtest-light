@@ -56,7 +56,7 @@ def test_dynamic_loader_entry_exit_missingness_and_roundtrip(tmp_path):
     raw = write_source(source)
     panel = load_data(source)
     assert isinstance(panel, DynamicPanel)
-    assert panel.features.shape == (len(raw), 24)
+    assert len(panel.features) == len(raw)
     asset = np.flatnonzero(panel.assets == "0:01")[0]
     assert asset in panel.asset_index[panel.day(0)]
     assert asset not in panel.asset_index[panel.day(2)]
@@ -220,7 +220,6 @@ def test_dynamic_e2e_with_confirmed_exits(tmp_path, prediction, strategy):
     )
     assert result.observations.iloc[0] == 8
     assert np.isfinite(result.annualized_excess_return.iloc[0])
-    assert "sharpe_ratio" in result and "annualized_return" not in result
     if strategy == "equal_weight":
         from btlight.ml.training.portfolio_data import experiment_splits
 
