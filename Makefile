@@ -25,6 +25,11 @@ TRAIN = uv run --no-sync python demo/ml/train.py --panel data/monthly.npz
 
 experiments:
 	$(MAKE) -j$(words $(MODELS)) $(MODELS)
+	$(MAKE) compare
+
+# Table and plots comparing the newest finished run of each model.
+compare:
+	uv run --no-sync python demo/ml/compare.py
 
 equal_weight gaussian baseline:
 	$(TRAIN) --model $@
@@ -37,3 +42,5 @@ gaussian_ensemble:
 
 gaussian_ensemble_pto:
 	$(TRAIN) --model gaussian --members $(MEMBERS) --no-e2e
+
+.PHONY: install install-editable format format-check test experiments compare $(MODELS)

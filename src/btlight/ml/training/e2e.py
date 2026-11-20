@@ -305,10 +305,9 @@ def run(
     strategy = "equal_weight" if equal_weight else ("e2e" if finetune else "pto")
     probabilistic = prediction == "gaussian" and not equal_weight
     pretrain = pretrain and not equal_weight
-    if probabilistic:
-        if not math.isfinite(nll_weight) or nll_weight <= 0:
-            raise ValueError("nll_weight must be finite and positive")
-    if distribution_output is not None:
+    if probabilistic and (not math.isfinite(nll_weight) or nll_weight <= 0):
+        raise ValueError("nll_weight must be finite and positive")
+    if distribution_output is not None:  # noqa: SIM102
         if not probabilistic or Path(distribution_output).suffix != ".npz":
             raise ValueError("distribution_output requires gaussian prediction and an .npz path")
 
