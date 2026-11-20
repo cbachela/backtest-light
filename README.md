@@ -109,39 +109,18 @@ uv run --no-sync python demo/ml/train.py --model gaussian --members 5 \
 
 Members train separately on the same dates. Their equally weighted mixture supplies
 one portfolio using average member covariance plus covariance from mean disagreement.
-Forecast scores use the mixture density and marginal mixture intervals. Logs identify
-each member and seed; NPZ exports include member forecasts. Training time grows roughly
+Forecast scores use the mixture density and marginal mixture intervals. Ensemble logs
+identify each member and seed; NPZ exports include member forecasts. Training time grows roughly
 with the member count. Disagreement is not a calibrated parameter posterior.
 
 ## Training logs
 
 By default, each run creates a folder such as
-`outputs/2026-11-03_14-30-00-123456_+0800_gaussian_e2e/`, using local time and the
-model/training type. The summary CSV and log are saved together. Gaussian runs
-also save an NPZ containing forecasts and portfolio weights in the same folder.
+`outputs/2026-11-03_14-30-00-123456_+0800_gaussian_e2e/`, using local time and the model/training type. 
 
-Each run prints the path to a timestamped JSONL log containing settings, split dates,
-epoch losses, and completion status.
+Compare finished runs (newest run of each model by default; `make experiments` runs
+this after training):
 
 ```sh
-uv run --no-sync python demo/ml/plot_loss.py outputs/<run-folder>/<log>.jsonl
-```
-
-The plot is saved beside the log as `<run>.loss.png`. It can also be generated while
-training is in progress.
-
-## Interpretation
-
-Changing-universe Gaussian members use diagonal covariance; ensembles also include
-covariance from member disagreement. Fixed panels can use historical correlations. Predicted variances describe returns, not parameter
-uncertainty. Portfolio dates require complete, aligned outcomes and confirmed exits.
-
-Market/JKP targets are supplied-price returns; currency and total-return conventions
-must be established for the input data. Turnover ignores return-induced weight drift,
-and summaries use 252 intervals per year even when the calendar excludes dates.
-
-## Tests
-
-```sh
-uv run --no-sync pytest -q
+uv run --no-sync python demo/ml/compare.py [run folders...]
 ```

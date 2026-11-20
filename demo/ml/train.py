@@ -14,14 +14,35 @@ PTO requires pretraining, equal_weight ignores both training stages.
 
 import argparse
 import json
+import math
+import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from time import perf_counter
 
+import pandas as pd
 from btlight.data.panel import DynamicPanel, load_data
 from btlight.ml.training.e2e import run
 from btlight.ml.training.portfolio_data import membership_exits, save_results
+
+
+def git_commit():
+    """Short commit hash of the code that produced a run, if available."""
+    try:
+        return subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=Path(__file__).parent, capture_output=True, text=True, check=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+
+
+def compact(value):
+    # Three significant digits
+    if isinstance(value, float):
+        return float(f"{value:.3g}") if math.isfinite(value) else None
+    return value
 
 
 def main():
@@ -65,41 +86,48 @@ def main():
 
     # Use a fresh log for each run so partial progress survives interruption.
     log_path = output.with_suffix(".jsonl")
+    windows_output = output.with_name(f"{name}_windows.csv")
     log_path.parent.mkdir(parents=True, exist_ok=False)
+    commit = git_commit()
+    context = {
+        "model": args.model,
+        "command": sys.argv,
+        "git_commit": commit,
+        "panel": str(Path(args.panel).resolve()) if args.panel else "synthetic-seed-7",
+        "output": str(output),
+        "windows_output": str(windows_output),
+        "distribution_output": str(distribution_output) if distribution_output else None,
+    }
     started = perf_counter()
     with log_path.open("x", buffering=1) as stream:
 
         def log(event, **fields):
+            # run() logs its settings; the CLI adds where the run came from and goes to.
+            if event == "run_start":
+                fields = {**context, **fields}
             record = dict(
-                timestamp=datetime.now(timezone.utc).isoformat(),
+                timestamp=datetime.now(UTC).isoformat(),
                 elapsed_seconds=perf_counter() - started,
                 event=event,
                 **fields,
             )
+            record = {k: compact(v) for k, v in record.items()}
             stream.write(json.dumps(record, default=str, allow_nan=False) + "\n")
             stream.flush()
 
         print(f"Training log: {log_path}", flush=True)
-        log(
-            "experiment_start",
-            model=args.model,
-            command=sys.argv,
-            panel=str(Path(args.panel).resolve()) if args.panel else "synthetic-seed-7",
-            output=str(output),
-            distribution_output=str(distribution_output) if distribution_output else None,
-        )
         try:
             panel = load_data(args.panel, args.smoke)
             # The synthetic smoke panel is daily and short, so it keeps Wang's 39/9/3.
             synthetic = args.smoke and not args.panel
             windows = (
-                dict(train_months=39, validation_months=9, test_months=3)
+                {"train_months": 39, "validation_months": 9, "test_months": 3}
                 if synthetic
-                else dict(
-                    train_months=args.train_months,
-                    validation_months=args.validation_months,
-                    test_months=args.test_months,
-                )
+                else {
+                    "train_months": args.train_months,
+                    "validation_months": args.validation_months,
+                    "test_months": args.test_months,
+                }
             )
 
             result = run(
@@ -119,15 +147,20 @@ def main():
                 log=log,
             )
             # Save the performance summary; Gaussian forecasts are exported by run().
+            windows = result.attrs.get("windows", [])
+            result = result.assign(git_commit=commit, run_folder=output.parent.name)
             save_results([result], output, args.panel or "synthetic-seed-7")
+            pd.DataFrame(windows).to_csv(windows_output, index=False)
         except BaseException as error:
             log(
-                "interrupted" if isinstance(error, KeyboardInterrupt) else "failed",
+                "run_end",
+                status="interrupted" if isinstance(error, KeyboardInterrupt) else "failed",
                 error_type=type(error).__name__,
                 message=str(error),
+                seconds=perf_counter() - started,
             )
             raise
-        log("experiment_end", output=str(output))
+        log("run_end", status="completed", seconds=perf_counter() - started)
 
 
 if __name__ == "__main__":

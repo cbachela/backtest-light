@@ -30,12 +30,21 @@ from btlight.ml.model.return_predictor import (
 )
 from btlight.ml.training.portfolio_data import (
     align_holdings,
+    average,
     correlation_factors,
     covariance_factors,
     experiment_splits,
+    forecast_diagnostics,
+    period_returns,
+    periods_per_year,
+    plain,
+    portfolio_diagnostics,
     summarize,
 )
 from btlight.optimization.differentiable import PortfolioLayer
+
+# Illustrative one-way cost (10 basis points) for the after-cost return column.
+NET_COST = 1e-3
 
 
 def dynamic_distribution(model, features):
@@ -57,7 +66,7 @@ def fit(
     nll_weight=1e-3,
     executed_exits=None,
     log=None,
-    quarter=None,
+    window=None,
 ):
     """Warm start or fine-tune the shared network on date cross-sections.
 
@@ -91,7 +100,7 @@ def fit(
     if log:
         log(
             "stage_start",
-            quarter=quarter,
+            window=window,
             stage=mode,
             learning_rate=learning_rate,
             optimizer="Adam",
@@ -126,6 +135,7 @@ def fit(
         previous = None
         previous_ids = []
         total = 0.0
+        stats = []
         for offset in range(0, len(indices), batch_dates):
             batch = indices[offset : offset + batch_dates]
             optimizer.zero_grad(set_to_none=True)
@@ -144,6 +154,11 @@ def fit(
                     nll = gaussian_nll(distribution, y)
                 else:
                     predicted = model(x)
+                # Monitoring only: exposes inflated means or lost ranking skill per epoch.
+                stats.append(forecast_diagnostics(
+                    predicted.detach().numpy(), y.numpy(),
+                    distribution.variance.detach().numpy() if probabilistic else None,
+                ))
 
                 # Pretraining never constructs or solves an allocation problem.
                 if mode != "e2e":
@@ -176,12 +191,18 @@ def fit(
 
                 weights = allocator(predicted, allocation_factor, previous)
                 # Score risk independently of the covariance predicted for allocation.
-                loss = allocator.loss(weights, y, factor, previous)
-                loss = loss + allocator.cost / 2 * exit_weight
+                terms = allocator.loss_terms(weights, y, factor, previous)
+                terms["cost_term"] = terms["cost_term"] + allocator.cost / 2 * exit_weight
                 if probabilistic:
                     # Retain a forecast-fitting term alongside the portfolio objective.
-                    loss = loss + nll_weight * nll
-                losses.append(loss)
+                    terms["nll_term"] = nll_weight * nll
+                losses.append(sum(terms.values()))
+                stats[-1].update(
+                    portfolio_diagnostics(
+                        weights.detach().numpy(), previous.detach().numpy(), exit_weight.item()
+                    ),
+                    **{name: value.item() for name, value in terms.items()},
+                )
                 previous = weights
 
             objective = torch.stack(losses).mean()
@@ -200,17 +221,14 @@ def fit(
             # Explicit truncated backpropagation boundary; holdings persist.
             if previous is not None:
                 previous = previous.detach()
-        return total / len(indices)
+        return total / len(indices), stats
 
+    stage_started = perf_counter()
     for epoch in range(epochs):
         started = perf_counter()
-        if log:
-            log("epoch_start", quarter=quarter, stage=mode, epoch=epoch + 1)
-        train_loss = run(train, True)
-        train_seconds = perf_counter() - started
+        train_loss, train_stats = run(train, True)
         with torch.no_grad():
-            val_loss = run(validation, False)
-        epoch_seconds = perf_counter() - started
+            val_loss, val_stats = run(validation, False)
         history.append({"epoch": epoch + 1, "train_loss": train_loss, "validation_loss": val_loss})
         if val_loss < best:
             best, best_state, stale = val_loss, deepcopy(model.state_dict()), 0
@@ -220,16 +238,14 @@ def fit(
         if log:
             log(
                 "epoch",
-                quarter=quarter,
+                window=window,
                 stage=mode,
                 epoch=epoch + 1,
+                seconds=perf_counter() - started,
                 train_loss=train_loss,
                 validation_loss=val_loss,
-                epoch_seconds=epoch_seconds,
-                train_seconds=train_seconds,
-                validation_seconds=epoch_seconds - train_seconds,
-                best_epoch=best_epoch,
-                best_validation_loss=best,
+                **average(train_stats, "train_"),
+                **average(val_stats, "validation_"),
             )
         if stale >= patience:
             break
@@ -240,12 +256,13 @@ def fit(
     if log:
         log(
             "stage_end",
-            quarter=quarter,
+            window=window,
             stage=mode,
             epochs_completed=len(history),
             best_epoch=best_epoch,
             best_validation_loss=best,
             early_stopped=stale >= patience,
+            seconds=perf_counter() - stage_started,
         )
     return history
 
@@ -296,13 +313,16 @@ def run(
             raise ValueError("distribution_output requires gaussian prediction and an .npz path")
 
     if log:
+        # Built before seeding below, so describing it does not change any initialization.
+        architecture = None if equal_weight else str(
+            (GaussianReturnPredictor if probabilistic else ReturnPredictor)(panel.features.shape[-1])
+        )
         log(
-            "settings",
+            "run_start",
             prediction=None if equal_weight else prediction,
             finetune=finetune and not equal_weight,
             pretrain=pretrain,
             max_epochs=epochs,
-            risk="none" if equal_weight else "variance",
             risk_aversion=0.0 if equal_weight else risk_aversion,
             cost=cost,
             first_test=first_test,
@@ -333,6 +353,7 @@ def run(
             train_months="expanding" if train_months is None else train_months,
             validation_months=validation_months,
             test_months=test_months,
+            architecture=architecture,
         )
 
     # Historical risk scores portfolios; Gaussian forecasts supply allocation risk.
@@ -364,6 +385,8 @@ def run(
     records = []
     distribution_records = []
     forecast_scores = []
+    test_stats = []
+    window_rows = []
     previous = (
         torch.zeros(0, dtype=torch.float64)
         if dynamic
@@ -374,7 +397,7 @@ def run(
     windows = {
         "train_months": train_months, "validation_months": validation_months, "test_months": test_months
     }
-    for quarter, train, val, test in experiment_splits(
+    for window, train, val, test in experiment_splits(
         panel, first_test, factors, smoke, **windows
     ):
         if dynamic:
@@ -394,8 +417,7 @@ def run(
         if log:
             log(
                 "window_start",
-                quarter=quarter,
-                architecture=str(model),
+                window=window,
                 splits={
                     name: {
                         "dates": len(ids),
@@ -416,7 +438,7 @@ def run(
         elif equal_weight:
             schedule = "Equal weight; no training"
         print(
-            f"{quarter}: {schedule} ({prediction})",
+            f"{window}: {schedule} ({prediction})",
             flush=True,
         )
         fitted = []
@@ -430,8 +452,10 @@ def run(
                 ).double()
 
             def member_log(event, **fields):
-                if log:
+                if log and members > 1:
                     log(event, member=member + 1, seed=seed, **fields)
+                elif log:
+                    log(event, **fields)
 
             if pretrain:
                 fit(
@@ -447,7 +471,7 @@ def run(
                     nll_weight=nll_weight,
                     executed_exits=executed_exits,
                     log=member_log,
-                    quarter=quarter,
+                    window=window,
                 )
             if strategy == "e2e":
                 fit(
@@ -463,14 +487,13 @@ def run(
                     nll_weight=nll_weight,
                     executed_exits=executed_exits,
                     log=member_log,
-                    quarter=quarter,
+                    window=window,
                 )
             fitted.append(model)
         if members > 1:
             model = GaussianEnsemble(fitted).eval()
 
-        if log:
-            log("test_start", quarter=quarter, dates=len(test))
+        first = len(records)
         with torch.no_grad():
             for t in test:
                 sl = panel.day(t) if dynamic else t
@@ -558,10 +581,24 @@ def run(
                 # Approximate turnover from weight changes, without return-drift adjustment.
                 turnover = ((weights - previous).abs().sum() + exit_weight).item() / 2
                 records.append((t, weights.numpy(), cost * turnover))
+                date_stats = portfolio_diagnostics(weights.numpy(), previous.numpy(), exit_weight.item())
+                if not equal_weight:
+                    date_stats.update(forecast_diagnostics(
+                        mu.numpy(), panel.targets[sl], variance.numpy() if probabilistic else None
+                    ))
+                if probabilistic:
+                    date_stats.update(test_nll_per_asset=nll, marginal_coverage_95=coverage)
+                test_stats.append(date_stats)
                 previous = weights
 
+        # One results row per retraining window, e.g. per test year.
+        row = {"window": window, "observations": len(records) - first}
+        if len(records) - first >= 2:
+            row.update(plain(summarize(panel, records[first:]).iloc[0].to_dict()))
+        row.update(average(test_stats[first:]))
+        window_rows.append(row)
         if log:
-            log("window_end", quarter=quarter, test_dates=len(test))
+            log("window_end", **row)
 
     # Packed arrays preserve variable cross-section sizes in forecast exports.
     if distribution_output is not None and dynamic:
@@ -627,14 +664,26 @@ def run(
             model_name += f" ensemble ({members})"
     if equal_weight:
         model_name = "Equal weight"
-    result = summarize(panel, records).assign(
+    result = summarize(panel, records)
+    overall = average(test_stats)
+    # After-cost comparison for runs trained without costs; turnover is one-way.
+    result["annualized_excess_return_net_10bp"] = (
+        result.annualized_excess_return - periods_per_year(panel) * NET_COST * overall["turnover"]
+    )
+    result = result.assign(
+        **overall,
         model=model_name,
         strategy=strategy,
-        risk="none" if equal_weight else "variance",
         risk_aversion=0.0 if equal_weight else risk_aversion,
         cost=cost,
         smoke=smoke,
         pretrain=pretrain,
+        seeds=None if equal_weight else ";".join(str(7 + m) for m in range(members)),
+        first_test=first_test,
+        train_months="expanding" if train_months is None else train_months,
+        validation_months=validation_months,
+        test_months=test_months,
+        max_epochs=None if equal_weight else epochs,
     )
     if probabilistic:
         result = result.assign(
@@ -648,4 +697,9 @@ def run(
             test_nll_per_asset=np.mean(forecast_scores, axis=0)[0],
             marginal_coverage_95=np.mean(forecast_scores, axis=0)[1],
         )
+    # Per-window rows and monthly returns travel with the summary; train.py saves them.
+    result.attrs["windows"] = window_rows
+    result.attrs["returns"] = period_returns(panel, records).assign(
+        turnover=[row["turnover"] for row in test_stats]
+    )
     return result

@@ -65,12 +65,15 @@ class PortfolioLayer(torch.nn.Module):
         )
         return weights
 
-    def loss(self, weights, realized, factor, previous):
+    def loss_terms(self, weights, realized, factor, previous):
+        """Separate parts of the upper loss, logged to see which part drives training."""
         exposure = factor * weights if factor.ndim == 1 else factor @ weights
-        variance = exposure.square().sum()
         # Wang eq. (21): substitute realized returns in the upper loss.
-        return (
-            -weights @ realized
-            + self.risk_aversion * variance
-            + self.cost / 2 * (weights - previous).abs().sum()
-        )
+        return {
+            "return_term": -weights @ realized,
+            "risk_term": self.risk_aversion * exposure.square().sum(),
+            "cost_term": self.cost / 2 * (weights - previous).abs().sum(),
+        }
+
+    def loss(self, weights, realized, factor, previous):
+        return sum(self.loss_terms(weights, realized, factor, previous).values())

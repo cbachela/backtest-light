@@ -154,64 +154,130 @@ def experiment_splits(panel, first_test, factors, smoke=False, **windows):
         raise ValueError("no usable splits; check first-test and panel dates")
 
 
+def forecast_diagnostics(mean, realized, variance=None):
+    """One date: spread of predicted means, rank IC and median predicted volatility."""
+    mean, realized = np.asarray(mean), np.asarray(realized)
+    stats = {"mu_spread": float(mean.std())}
+    if mean.std() > 0 and realized.std() > 0:
+        # Rank correlation; ties are rare in continuous forecasts and broken by order.
+        ranks = [np.argsort(np.argsort(x)) for x in (mean, realized)]
+        stats["ic"] = float(np.corrcoef(*ranks)[0, 1])
+    if variance is not None:
+        stats["sigma_median"] = float(np.median(np.sqrt(variance)))
+    return stats
+
+
+def portfolio_diagnostics(weights, previous, exit_weight=0.0):
+    """One rebalance: positions above 0.1%, concentration, largest weight, one-way turnover."""
+    w, previous = np.asarray(weights), np.asarray(previous)
+    return {
+        "holdings": int((w > 1e-3).sum()),
+        "effective_n": float(1 / np.square(w).sum()),
+        "max_weight": float(w.max()),
+        "turnover": float((np.abs(w - previous).sum() + exit_weight) / 2),
+    }
+
+
+def average(rows, prefix=""):
+    """Average per-date diagnostics; keys missing on some dates use the dates that have them."""
+    keys = dict.fromkeys(k for row in rows for k in row)
+    return {prefix + k: float(np.mean([row[k] for row in rows if k in row])) for k in keys}
+
+
+def plain(values):
+    """NumPy scalars to Python values, so rows can be written as JSON."""
+    return {k: v.item() if hasattr(v, "item") else v for k, v in values.items()}
+
+
+def periods_per_year(panel):
+    # Monthly panels rebalance about every 30 days; daily panels about every trading day.
+    gap = np.median(np.diff(panel.dates).astype("timedelta64[D]").astype(int))
+    return 12 if gap >= 20 else 252
+
+
+def period_returns(panel, records):
+    """Portfolio (net of the run's cost) and equal-weight benchmark return per test date.
+
+    JKP targets are excess returns, so both series and all metrics are excess returns.
+    The equal-weight benchmark holds the whole eligible universe without costs.
+    """
+    dynamic = isinstance(panel, DynamicPanel)
+    rows = []
+    for t, weights, cost in records:
+        realized = panel.targets[panel.day(t)] if dynamic else panel.raw_returns[t]
+        rows.append({
+            "date": str(panel.dates[t]),
+            "label_end": str(panel.label_end[panel.day(t)][0] if dynamic else panel.label_end[t]),
+            "portfolio": float(weights @ realized - cost),
+            "equal_weight": float(realized.mean()),
+        })
+    returns = pd.DataFrame(rows)
+    if not np.isfinite(returns.portfolio).all() or (returns.portfolio <= -1).any():
+        raise ValueError("invalid portfolio returns")
+    return returns
+
+
+def ratio(a, b):
+    return a / b if b > 0 else np.nan
+
+
+def performance(r, periods):
+    """Descriptive statistics of one return series; annualized with `periods` per year."""
+    r = np.asarray(r, dtype=float)
+    wealth = np.r_[1.0, np.cumprod(1 + r)]
+    sd = r.std(ddof=1)
+    # Downside deviation below zero; zero is the risk-free rate for excess returns.
+    downside = np.sqrt(np.mean(np.minimum(r, 0) ** 2))
+    centred = r - r.mean()
+    m2 = np.mean(centred**2)
+    return {
+        "annualized_excess_return": r.mean() * periods,
+        "cagr": wealth[-1] ** (periods / len(r)) - 1,
+        "annualized_excess_volatility": sd * np.sqrt(periods),
+        "sharpe_ratio": ratio(r.mean(), sd) * np.sqrt(periods),
+        "sortino_ratio": ratio(r.mean(), downside) * np.sqrt(periods),
+        "max_drawdown_excess": (1 - wealth / np.maximum.accumulate(wealth)).max(),
+        "skewness": ratio(np.mean(centred**3), m2**1.5),
+        "excess_kurtosis": ratio(np.mean(centred**4), m2**2) - 3,
+        "hit_rate": np.mean(r > 0),
+        "best_period": r.max(),
+        "worst_period": r.min(),
+    }
+
+
+def relative(r, benchmark, periods, prefix):
+    """Active-return statistics against one benchmark, plus the benchmark's own CAGR."""
+    r, b = np.asarray(r, dtype=float), np.asarray(benchmark, dtype=float)
+    active = r - b
+    tracking = active.std(ddof=1)
+    beta = ratio(np.cov(r, b)[0, 1], b.var(ddof=1))
+    return {
+        f"{prefix}cagr": np.prod(1 + b) ** (periods / len(b)) - 1,
+        f"{prefix}active_return": active.mean() * periods,
+        f"{prefix}tracking_error": tracking * np.sqrt(periods),
+        f"{prefix}information_ratio": ratio(active.mean(), tracking) * np.sqrt(periods),
+        f"{prefix}active_tstat": ratio(active.mean(), tracking) * np.sqrt(len(active)),
+        f"{prefix}beta": beta,
+        f"{prefix}alpha": (r.mean() - beta * b.mean()) * periods,
+        # Final wealth relative to the benchmark's, minus one.
+        f"{prefix}cumulative_relative": np.prod(1 + r) / np.prod(1 + b) - 1,
+        f"{prefix}hit_rate": np.mean(active > 0),
+    }
+
+
 def summarize(panel, records):
     if len(records) < 2:
         raise ValueError("need at least two test observations")
-    dynamic = isinstance(panel, DynamicPanel)
-    raw = np.array(
-        [
-            weights @ (panel.targets[panel.day(t)] if dynamic else panel.raw_returns[t])
-            - cost
-            for t, weights, cost in records
-        ]
-    )
-    excess = (
-        raw
-        if dynamic
-        else np.array(
-            [weights @ panel.targets[t] - cost for t, weights, cost in records]
-        )
-    )
-    if not np.isfinite(raw).all() or np.any(raw <= -1):
-        raise ValueError("invalid portfolio returns")
-    # Dynamic (JKP) targets are excess returns, so this wealth path is excess wealth.
-    wealth = np.r_[1.0, np.cumprod(1 + raw)]
-    # Monthly panels rebalance about every 30 days; daily panels about every trading day.
-    gap = np.median(np.diff(panel.dates).astype("timedelta64[D]").astype(int))
-    periods = 12 if gap >= 20 else 252
-    return pd.DataFrame(
-        [
-            {
-                "observations": len(raw),
-                "annualized_return": raw.mean() * periods,
-                "annualized_excess_return": excess.mean() * periods,
-                "annualized_volatility": raw.std(ddof=1) * np.sqrt(periods),
-                "test_start": str(panel.dates[records[0][0]]),
-                "test_end": str(
-                    panel.label_end[panel.day(records[-1][0])][0]
-                    if dynamic
-                    else panel.label_end[records[-1][0]]
-                ),
-                "information_ratio": (
-                    excess.mean() / excess.std(ddof=1) * np.sqrt(periods)
-                    if excess.std(ddof=1) > 0
-                    else np.nan
-                ),
-                "max_drawdown": (1 - wealth / np.maximum.accumulate(wealth)).max(),
-            }
-        ]
-    ).drop(columns=["annualized_excess_return"] if dynamic else []).rename(
-        columns=(
-            {
-                "annualized_return": "annualized_excess_return",
-                "annualized_volatility": "annualized_excess_volatility",
-                "information_ratio": "sharpe_ratio",
-                "max_drawdown": "max_drawdown_excess",
-            }
-            if dynamic
-            else {}
-        )
-    )
+    returns = period_returns(panel, records)
+    periods = periods_per_year(panel)
+    r = returns.portfolio.to_numpy()
+    return pd.DataFrame([{
+        "observations": len(r),
+        "test_start": returns.date.iloc[0],
+        "test_end": returns.label_end.iloc[-1],
+        **performance(r, periods),
+        **relative(r, returns.equal_weight.to_numpy(), periods, "ew_"),
+    }])
 
 
 def save_results(results, path, source):

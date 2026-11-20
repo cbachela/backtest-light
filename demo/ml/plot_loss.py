@@ -21,18 +21,20 @@ def plot_loss(path, output=None):
                 break  # A running process may still be writing the last line.
             raise
         if record.get("event") == "epoch":
+            # Logs before 2026-11-20 call the retraining window "quarter".
+            record.setdefault("window", record.get("quarter"))
             records.append(record)
     if not records:
         raise ValueError("No completed epochs in this log yet")
-    quarters = list(dict.fromkeys(r["quarter"] for r in records))
+    windows = list(dict.fromkeys(r["window"] for r in records))
     stages = list(dict.fromkeys(r["stage"] for r in records))
     fig, axes = plt.subplots(
-        len(quarters), len(stages), squeeze=False, figsize=(6 * len(stages), 3.5 * len(quarters))
+        len(windows), len(stages), squeeze=False, figsize=(6 * len(stages), 3.5 * len(windows))
     )
-    for row, quarter in enumerate(quarters):
+    for row, window in enumerate(windows):
         for col, stage in enumerate(stages):
             ax = axes[row, col]
-            values = [r for r in records if r["quarter"] == quarter and r["stage"] == stage]
+            values = [r for r in records if r["window"] == window and r["stage"] == stage]
             if not values:
                 ax.set_visible(False)
                 continue
@@ -42,7 +44,7 @@ def plot_loss(path, output=None):
                 label = f" member {member}" if len({r.get("member", 1) for r in values}) > 1 else ""
                 ax.plot(epochs, [r["train_loss"] for r in member_values], ".-", label="Training" + label)
                 ax.plot(epochs, [r["validation_loss"] for r in member_values], ".-", label="Validation" + label)
-            ax.set(title=f"{quarter} · {stage.upper()}", xlabel="Epoch", ylabel="Loss")
+            ax.set(title=f"{window} · {stage.upper()}", xlabel="Epoch", ylabel="Loss")
             ax.grid(alpha=0.2)
             ax.legend()
     fig.suptitle(path.stem)

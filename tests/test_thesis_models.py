@@ -72,8 +72,41 @@ def test_expanding_splits():
 def test_e2e_runs():
     result = run(synthetic_panel(), epochs=1, smoke=True)
     assert result.observations.iloc[0] == 8
-    assert result.risk.iloc[0] == "variance"
+    assert "risk" not in result
+    # Long-only, fully invested and capped at 10%: at least ten effective positions.
+    assert 10 - 1e-6 <= result.effective_n.iloc[0] and result.max_weight.iloc[0] <= 0.1 + 1e-6
+    assert -1 <= result.ic.iloc[0] <= 1 and result.mu_spread.iloc[0] > 0
+    assert result.annualized_excess_return_net_10bp.iloc[0] == pytest.approx(
+        result.annualized_excess_return.iloc[0] - 252 * 1e-3 * result.turnover.iloc[0]
+    )
+    (window,) = result.attrs["windows"]
+    assert window["observations"] == 8 and window["turnover"] == result.turnover.iloc[0]
+    returns = result.attrs["returns"]
+    assert len(returns) == 8 and list(returns)[2:] == ["portfolio", "equal_weight", "turnover"]
+    assert result.ew_active_return.iloc[0] == pytest.approx(
+        (returns.portfolio - returns.equal_weight).mean() * 252
+    )
     assert np.isfinite(result.select_dtypes(include="number").to_numpy()).all()
+
+
+def test_performance_and_relative_metrics():
+    from btlight.ml.training.portfolio_data import performance, relative
+
+    r = np.array([0.1, -0.05, 0.02, 0.03])
+    stats = performance(r, 12)
+    assert stats["annualized_excess_return"] == pytest.approx(r.mean() * 12)
+    assert stats["cagr"] == pytest.approx(np.prod(1 + r) ** 3 - 1)
+    assert stats["sharpe_ratio"] == pytest.approx(r.mean() / r.std(ddof=1) * np.sqrt(12))
+    assert stats["max_drawdown_excess"] == pytest.approx(0.05)
+    assert stats["hit_rate"] == 0.75 and stats["worst_period"] == -0.05
+    # A leveraged copy of the benchmark: beta 2, zero alpha; active = benchmark itself.
+    b = r / 2
+    rel = relative(r, b, 12, "ew_")
+    assert rel["ew_beta"] == pytest.approx(2) and rel["ew_alpha"] == pytest.approx(0, abs=1e-12)
+    assert rel["ew_tracking_error"] == pytest.approx(b.std(ddof=1) * np.sqrt(12))
+    assert rel["ew_information_ratio"] == pytest.approx(b.mean() / b.std(ddof=1) * np.sqrt(12))
+    assert rel["ew_cumulative_relative"] == pytest.approx(np.prod(1 + r) / np.prod(1 + b) - 1)
+    assert rel["ew_hit_rate"] == 0.75
 
 
 def test_historical_errors_timing_covariance_and_gradient():
@@ -140,6 +173,6 @@ def test_equal_weight_returns_without_training_or_solver(monkeypatch):
     ))
     result = run(panel, prediction="equal_weight", smoke=True, cost=0.001)
     returns = panel.raw_returns[test].mean(axis=1)
-    assert result.annualized_return.iloc[0] == pytest.approx(returns.mean() * 252)
+    assert result.annualized_excess_return.iloc[0] == pytest.approx(returns.mean() * 252)
     assert result.pretrain.iloc[0] == False
     assert result.model.iloc[0] == "Equal weight"
